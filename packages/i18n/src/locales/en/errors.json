@@ -1,0 +1,8 @@
+{
+  "catalog": {
+    "loadFailed": "Unable to load live catalog."
+  },
+  "lobby": {
+    "full": "The lobby is full."
+  }
+}

@@ -1,53 +1,47 @@
 # Game Center
 
-A modern multi-surface game center with:
+Game Center is being reset into a platform-oriented architecture.
 
-- A React main lobby in `apps/portal`
-- A standalone board game client in `apps/board-arena`
-- A standalone arcade client in `apps/arcade-runner`
-- A standalone 3D simulation client in `apps/flight-sim`
-- A Node + WebSocket lobby service in `services/lobby-server`
+The current codebase contains a platform web prototype, gameplay prototypes, and a prototype lobby server. Those assets are not the final production architecture and must be interpreted through the architecture documents in `docs/`.
 
-## Why this structure
+## Source Of Truth
 
-The portal is only responsible for discovery and lobby orchestration. Gameplay clients are isolated so each game can use the runtime that best fits its rendering and input model.
+Start here:
 
-## Run locally
+- `docs/architecture/system-overview.md`
+- `docs/architecture/current-state-audit.md`
+- `docs/architecture/repository-migration-plan.md`
+- `docs/architecture/technology-matrix.md`
+- `docs/development/docker-dev-architecture.md`
+- `docs/adr/`
 
-Start the lobby service:
+## Current Prototype Components
 
-```bash
-npm run dev:server
-```
+- `apps/web` -> active platform web app
+- `services/platform-api` -> active Phase 1 NestJS modular monolith
+- `services/realtime-gateway` -> Go skeleton only
+- `games/prototypes/board-arena` -> board prototype, reference only
+- `games/prototypes/arcade-runner` -> arcade prototype, reference only
+- `games/prototypes/flight-sim` -> 3D preview prototype, reference only
+- `services/_deprecated/lobby-server` -> deprecated prototype, not part of the default platform runtime
 
-Start the portal:
-
-```bash
-npm run dev:portal
-```
-
-Start the standalone game clients:
-
-```bash
-npm run dev:board
-npm run dev:arcade
-npm run dev:sim
-```
-
-## Build everything
+## Current Build
 
 ```bash
 npm run build
 ```
 
-## Service endpoints
+## Current Dev Commands
 
-- `GET /api/games`
-- `GET /api/games/:slug`
-- `GET /api/lobbies`
-- `POST /api/lobbies`
-- `POST /api/lobbies/:id/join`
-- `POST /api/lobbies/:id/ready`
-- `POST /api/lobbies/:id/board/move`
+```bash
+npm run dev
+npm run build
+npm run lint
+npm run test
+npm run docker:up
+npm run docker:down
+npm run docker:logs
+npm run docker:reset
+```
 
-The board game endpoint applies server-side drop-token validation and win detection.
+Prototype inspection commands remain available but are not part of the default platform development flow.

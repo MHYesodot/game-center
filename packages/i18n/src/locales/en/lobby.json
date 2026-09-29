@@ -1,0 +1,16 @@
+{
+  "notFound": {
+    "eyebrow": "Lobby not found",
+    "title": "This game lobby is not in the active catalog."
+  },
+  "detail": {
+    "eyebrow": "{category} game lobby",
+    "overview": "Lobby overview",
+    "profile": "Lobby profile",
+    "modes": "Modes",
+    "stack": "Stack",
+    "clientLaunch": "Client launch",
+    "runtime": "Runtime",
+    "serverFocus": "Server focus"
+  }
+}

@@ -1,0 +1,361 @@
+.app-shell {
+  min-height: 100vh;
+  padding: 24px clamp(18px, 4vw, 44px) 48px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 22px;
+  border: 1px solid var(--gc-border-subtle);
+  border-radius: var(--gc-radius-xl);
+  background: var(--gc-surface-elevated);
+  backdrop-filter: blur(18px);
+  position: sticky;
+  top: 16px;
+  z-index: var(--gc-z-sticky);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  text-decoration: none;
+  color: var(--gc-text-primary);
+}
+
+.brand strong,
+.brand small {
+  display: block;
+}
+
+.brand small {
+  color: var(--gc-text-secondary);
+}
+
+.brand-mark {
+  width: 46px;
+  height: 46px;
+  border-radius: var(--gc-radius-sm);
+  display: grid;
+  place-items: center;
+  color: var(--gc-text-inverse);
+  background: linear-gradient(135deg, #f3c66b, #ff7d66 52%, #77d1ff);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.topnav {
+  display: inline-flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.topnav a,
+.source-pill,
+.secondary-action,
+.inline-link {
+  border: 1px solid var(--gc-border-subtle);
+  border-radius: var(--gc-radius-pill);
+  padding: 10px 14px;
+  text-decoration: none;
+  color: var(--gc-text-secondary);
+  transition:
+    transform var(--gc-motion-fast) ease,
+    border-color var(--gc-motion-fast) ease,
+    color var(--gc-motion-fast) ease,
+    background var(--gc-motion-fast) ease;
+}
+
+.topnav a:hover,
+.secondary-action:hover,
+.inline-link:hover {
+  transform: translateY(-1px);
+  border-color: var(--gc-border-strong);
+  color: var(--gc-text-primary);
+}
+
+.page {
+  display: grid;
+  gap: 28px;
+  margin-top: 28px;
+}
+
+.hero-panel,
+.metrics-row,
+.featured-strip,
+.category-block,
+.lobby-layout,
+.breadcrumb-row {
+  border: 1px solid var(--gc-border-subtle);
+  border-radius: var(--gc-radius-xxl);
+  background: var(--gc-surface-primary);
+  box-shadow: var(--gc-shadow-soft);
+}
+
+.hero-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.9fr);
+  gap: 24px;
+  padding: clamp(28px, 5vw, 56px);
+  overflow: hidden;
+  position: relative;
+}
+
+.hero-panel::before {
+  content: '';
+  position: absolute;
+  inset: auto -14% -40% 40%;
+  height: 320px;
+  background: radial-gradient(circle, rgba(119, 209, 255, 0.28), transparent 68%);
+  pointer-events: none;
+}
+
+.hero-copy,
+.lobby-main,
+.lobby-sidebar {
+  position: relative;
+  z-index: 1;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 0.78rem;
+  color: var(--gc-accent-text);
+  margin-bottom: 14px;
+}
+
+.hero-text {
+  font-size: 1.05rem;
+  max-width: 62ch;
+  color: var(--gc-text-secondary);
+}
+
+.hero-actions {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 30px;
+}
+
+.primary-action {
+  text-decoration: none;
+  padding: 14px 22px;
+  border-radius: var(--gc-radius-pill);
+  font-weight: 600;
+  color: var(--gc-text-inverse);
+  background: var(--gc-action-primary);
+  box-shadow: var(--gc-shadow-action);
+}
+
+.hero-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.hero-stack article,
+.sidebar-card,
+.game-card,
+.featured-card {
+  border-radius: var(--gc-radius-lg);
+  border: 1px solid var(--gc-border-subtle);
+  background: var(--gc-surface-secondary);
+}
+
+.hero-stack article {
+  padding: 20px;
+}
+
+.hero-stack span,
+.game-card-header span,
+.command-label {
+  color: var(--gc-accent-text);
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.metrics-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  overflow: hidden;
+}
+
+.metrics-row div {
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.metrics-row strong {
+  display: block;
+  font-size: 1.5rem;
+  color: var(--gc-text-primary);
+  margin-bottom: 8px;
+}
+
+.featured-strip,
+.game-grid,
+.detail-list,
+.stack-list {
+  display: grid;
+  gap: 16px;
+}
+
+.featured-strip {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.featured-card,
+.game-card {
+  padding: 22px;
+  text-decoration: none;
+  color: inherit;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease;
+}
+
+.featured-card:hover,
+.game-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.featured-card p,
+.section-heading .eyebrow {
+  margin-bottom: 10px;
+}
+
+.featured-card span {
+  color: var(--gc-text-secondary);
+}
+
+.catalog-section {
+  display: grid;
+  gap: 28px;
+}
+
+.category-block {
+  padding: 28px;
+}
+
+.section-heading {
+  margin-bottom: 20px;
+}
+
+.game-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.game-card-header,
+.breadcrumb-row,
+.command-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.game-card h3 {
+  margin: 18px 0 12px;
+  font-size: 1.35rem;
+}
+
+.stack-list,
+.detail-list {
+  list-style: none;
+  padding: 0;
+  margin: 18px 0 0;
+}
+
+.stack-list li,
+.detail-list li {
+  padding: 12px 14px;
+  border-radius: var(--gc-radius-sm);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--gc-text-secondary);
+}
+
+.lobby-page {
+  gap: 18px;
+}
+
+.breadcrumb-row {
+  padding: 18px 24px;
+  color: var(--gc-text-secondary);
+}
+
+.breadcrumb-row a {
+  color: var(--gc-text-primary);
+  text-decoration: none;
+}
+
+.lobby-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+  gap: 22px;
+  padding: 28px;
+}
+
+.command-panel {
+  margin-top: 26px;
+}
+
+.command-panel > div,
+.sidebar-card {
+  padding: 20px;
+}
+
+.command-panel > div {
+  flex: 1 1 180px;
+  border-radius: var(--gc-radius-md);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.command-panel strong {
+  display: block;
+  margin-top: 10px;
+  color: var(--gc-text-primary);
+}
+
+.lobby-sidebar {
+  display: grid;
+  gap: 16px;
+}
+
+.accent-card {
+  background: var(--gc-surface-accent);
+}
+
+@media (max-width: 980px) {
+  .topbar,
+  .hero-panel,
+  .lobby-layout,
+  .featured-strip,
+  .game-grid,
+  .metrics-row {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    position: static;
+  }
+
+  .topnav {
+    width: 100%;
+  }
+
+  .game-card-header,
+  .breadcrumb-row,
+  .command-panel,
+  .hero-actions {
+    align-items: flex-start;
+  }
+}

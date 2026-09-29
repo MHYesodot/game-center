@@ -1,0 +1,16 @@
+{
+  "notFound": {
+    "eyebrow": "הלובי לא נמצא",
+    "title": "לובי המשחק הזה אינו נמצא בקטלוג הפעיל."
+  },
+  "detail": {
+    "eyebrow": "לובי משחק {category}",
+    "overview": "סקירת לובי",
+    "profile": "פרופיל לובי",
+    "modes": "מצבים",
+    "stack": "סטאק",
+    "clientLaunch": "השקת לקוח",
+    "runtime": "Runtime",
+    "serverFocus": "מוקד שרת"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "breadcrumbs": {
+    "separator": "/"
+  },
+  "categories": {
+    "board": "Board",
+    "arcade": "Arcade",
+    "simulation3d": "3D Simulation"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "brand": {
+    "title": "Game Center",
+    "subtitle": "Multi-platform lobby hub",
+    "mark": "GC"
+  },
+  "actions": {
+    "browseCategories": "Browse categories",
+    "openLobby": "Open lobby",
+    "backToCatalog": "Back to catalog",
+    "returnToMainLobby": "Return to main lobby"
+  },
+  "surfaces": {
+    "mainLobby": "Main lobby"
+  },
+  "formats": {
+    "categoryLobbies": "{category} lobbies"
+  }
+}

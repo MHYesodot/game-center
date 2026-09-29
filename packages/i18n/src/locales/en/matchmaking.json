@@ -1,0 +1,8 @@
+{
+  "status": {
+    "queued": "Queued",
+    "searching": "Searching",
+    "proposed": "Proposal pending",
+    "matched": "Matched"
+  }
+}

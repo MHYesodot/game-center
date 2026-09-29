@@ -1,0 +1,8 @@
+{
+  "name": "@game-center/contracts",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

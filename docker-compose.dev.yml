@@ -1,0 +1,62 @@
+services:
+  gateway:
+    volumes:
+      - ./infrastructure/docker/traefik.dynamic.dev.yml:/etc/traefik/dynamic.yml:ro
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: dev
+    command: ["sh", "/workspace/infrastructure/scripts/dev/start-web.sh"]
+    environment:
+      VITE_API_BASE_URL: /api
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - ./package.json:/workspace/package.json:ro
+      - ./package-lock.json:/workspace/package-lock.json:ro
+      - ./apps/web:/workspace/apps/web
+      - ./packages:/workspace/packages
+      - ./infrastructure/scripts:/workspace/infrastructure/scripts:ro
+      - web_workspace_node_modules:/workspace/node_modules
+      - web_app_node_modules:/workspace/apps/web/node_modules
+
+  platform-api:
+    build:
+      context: .
+      dockerfile: services/platform-api/Dockerfile
+      target: dev
+    command: ["sh", "/workspace/infrastructure/scripts/dev/start-platform-api.sh"]
+    environment:
+      PORT: 3000
+      NODE_ENV: development
+      POSTGRES_URL: postgresql://gamecenter:gamecenter@postgres:5432/gamecenter
+      REDIS_URL: redis://redis:6379
+      NATS_URL: nats://nats:4222
+      CORS_ORIGIN: http://localhost:${DEV_HTTP_PORT:-8080}
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - ./package.json:/workspace/package.json:ro
+      - ./package-lock.json:/workspace/package-lock.json:ro
+      - ./services/platform-api:/workspace/services/platform-api
+      - ./packages:/workspace/packages
+      - ./infrastructure/scripts:/workspace/infrastructure/scripts:ro
+      - platform_api_workspace_node_modules:/workspace/node_modules
+      - platform_api_service_node_modules:/workspace/services/platform-api/node_modules
+
+  realtime-gateway:
+    build:
+      context: .
+      dockerfile: services/realtime-gateway/Dockerfile
+    environment:
+      PORT: 8081
+      PLATFORM_API_URL: http://platform-api:3000
+    networks:
+      - platform
+    profiles: [full]
+
+volumes:
+  web_workspace_node_modules:
+  web_app_node_modules:
+  platform_api_workspace_node_modules:
+  platform_api_service_node_modules:

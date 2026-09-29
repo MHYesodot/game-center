@@ -1,0 +1,10 @@
+{
+  "breadcrumbs": {
+    "separator": "/"
+  },
+  "categories": {
+    "board": "לוח",
+    "arcade": "ארקייד",
+    "simulation3d": "סימולציה תלת-ממדית"
+  }
+}

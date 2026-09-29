@@ -1,0 +1,171 @@
+name: game-center
+
+services:
+  gateway:
+    image: traefik:v3.1
+    command:
+      - --providers.file.filename=/etc/traefik/dynamic.yml
+      - --entrypoints.web.address=:80
+      - --ping=true
+    ports:
+      - "${DEV_HTTP_PORT:-8080}:80"
+    volumes:
+      - ./infrastructure/docker/traefik.dynamic.yml:/etc/traefik/dynamic.yml:ro
+    networks:
+      - edge
+      - platform
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    image: game-center-web
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    networks:
+      - edge
+      - platform
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1/ >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  platform-api:
+    image: game-center-platform-api
+    build:
+      context: .
+      dockerfile: services/platform-api/Dockerfile
+    environment:
+      PORT: 3000
+      NODE_ENV: production
+      POSTGRES_URL: postgresql://gamecenter:gamecenter@postgres:5432/gamecenter
+      REDIS_URL: redis://redis:6379
+      NATS_URL: nats://nats:4222
+      CORS_ORIGIN: http://localhost:${DEV_HTTP_PORT:-8080}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    networks:
+      - platform
+      - observability
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:3000/health/ready >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-gamecenter}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gamecenter}
+      POSTGRES_DB: ${POSTGRES_DB:-gamecenter}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-gamecenter} -d ${POSTGRES_DB:-gamecenter}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - platform
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  nats:
+    image: nats:2.10-alpine
+    command: ["-js"]
+    networks:
+      - platform
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+    volumes:
+      - minio_data:/data
+    networks:
+      - platform
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.111.0
+    command: ["--config=/etc/otel/config.yaml"]
+    volumes:
+      - ./infrastructure/monitoring/otel-collector.dev.yaml:/etc/otel/config.yaml:ro
+    networks:
+      - observability
+      - platform
+    profiles: [observability, full]
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    volumes:
+      - ./infrastructure/monitoring/prometheus.dev.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      - observability
+    profiles: [observability, full]
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - observability
+    profiles: [observability, full]
+
+  loki:
+    image: grafana/loki:3.2.1
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    networks:
+      - observability
+    profiles: [observability, full]
+
+  tempo:
+    image: grafana/tempo:2.6.0
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./infrastructure/monitoring/tempo.dev.yaml:/etc/tempo.yaml:ro
+    networks:
+      - observability
+    profiles: [observability, full]
+
+networks:
+  edge:
+  platform:
+  observability:
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  grafana_data:

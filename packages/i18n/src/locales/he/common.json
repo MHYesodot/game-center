@@ -1,0 +1,19 @@
+{
+  "brand": {
+    "title": "Game Center",
+    "subtitle": "מרכז לובים רב-פלטפורמי",
+    "mark": "GC"
+  },
+  "actions": {
+    "browseCategories": "עיון בקטגוריות",
+    "openLobby": "פתיחת לובי",
+    "backToCatalog": "חזרה לקטלוג",
+    "returnToMainLobby": "חזרה ללובי הראשי"
+  },
+  "surfaces": {
+    "mainLobby": "לובי ראשי"
+  },
+  "formats": {
+    "categoryLobbies": "לובים של {category}"
+  }
+}

@@ -1,0 +1,134 @@
+:root {
+  color: #edf7ff;
+  background:
+    radial-gradient(circle at top, rgba(102, 197, 255, 0.14), transparent 28%),
+    linear-gradient(180deg, #040913 0%, #071120 100%);
+  font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+.sim-shell {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 28px;
+}
+
+.sim-header,
+.sim-stage {
+  border-radius: 30px;
+  border: 1px solid rgba(120, 212, 255, 0.12);
+  background: rgba(4, 11, 25, 0.82);
+}
+
+.sim-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 20px;
+  padding: 28px;
+  margin-bottom: 24px;
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: #7fcfff;
+  font-size: 0.8rem;
+}
+
+h1,
+p,
+span,
+strong {
+  margin: 0;
+}
+
+h1 {
+  font-size: clamp(3rem, 5vw, 5.4rem);
+  margin-bottom: 14px;
+}
+
+p {
+  color: rgba(237, 247, 255, 0.74);
+  line-height: 1.6;
+}
+
+.sim-stats {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 20px;
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(127, 207, 255, 0.14), rgba(127, 207, 255, 0.03));
+}
+
+.sim-stats span,
+.sim-overlay span {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: #7fcfff;
+  font-size: 0.75rem;
+}
+
+.sim-stats strong,
+.sim-overlay strong {
+  font-size: 1.45rem;
+}
+
+.sim-stage {
+  position: relative;
+  overflow: hidden;
+  padding: 16px;
+}
+
+#sim-canvas {
+  width: 100%;
+  display: block;
+  border-radius: 24px;
+}
+
+.sim-overlay {
+  position: absolute;
+  left: 32px;
+  right: 32px;
+  bottom: 32px;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sim-overlay > div {
+  min-width: 220px;
+  padding: 18px 20px;
+  border-radius: 20px;
+  background: rgba(4, 11, 25, 0.72);
+  backdrop-filter: blur(14px);
+}
+
+@media (max-width: 960px) {
+  .sim-header,
+  .sim-overlay {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+
+  .sim-shell {
+    padding: 16px;
+  }
+
+  .sim-overlay {
+    position: static;
+    margin-top: 16px;
+  }
+}

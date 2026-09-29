@@ -1,0 +1,1 @@
+Catalog module boundary placeholder.

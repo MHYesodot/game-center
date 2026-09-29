@@ -1,0 +1,86 @@
+export type CatalogGameCategory =
+  | 'board'
+  | 'card'
+  | 'arcade'
+  | '2d'
+  | '3d'
+  | 'racing'
+  | 'simulation'
+  | 'fps'
+
+export type GameClientRuntime = 'web' | 'native' | 'launcher'
+
+export type GameServerType = 'none' | 'shared' | 'dedicated'
+
+export type GameLifecycleStatus = 'draft' | 'active' | 'retired'
+
+export type GameCapabilities = {
+  multiplayer: boolean
+  ranked: boolean
+  spectators: boolean
+  replays: boolean
+  privateRooms: boolean
+}
+
+export type GameRuntime = {
+  clientRuntime: GameClientRuntime
+  engine: string
+  serverType: GameServerType
+}
+
+export type GameVersion = {
+  gameVersion: string
+  protocolVersion: string
+  buildVersion: string
+}
+
+export type GameManifest = {
+  gameId: string
+  slug: string
+  name: string
+  category: CatalogGameCategory
+  summaryKey: string
+  runtime: GameRuntime
+  version: GameVersion
+  capabilities: GameCapabilities
+  platforms: {
+    web: boolean
+    windows: boolean
+    macos: boolean
+    android: boolean
+    ios: boolean
+    ipados: boolean
+  }
+  minimumVersion?: string
+  downloadStrategy?: 'browser' | 'managed-install' | 'store-deep-link' | 'bundled'
+  launchStrategy?: 'route' | 'native-process' | 'deep-link' | 'embedded-web-runtime'
+  architecture?: 'browser' | 'native-desktop' | 'native-mobile' | 'dedicated-server'
+}
+
+export type GameDefinition = {
+  gameId: string
+  slug: string
+  name: string
+  status: GameLifecycleStatus
+  tags: string[]
+  summaryKey: string
+  manifest: GameManifest
+}
+
+export type CatalogListResponse = {
+  games: GameDefinition[]
+}
+
+export type CatalogGameManifest = {
+  gameId: string
+  slug: string
+  name: string
+  category: CatalogGameCategory
+  runtime: GameClientRuntime
+  engine: string
+  serverType: GameServerType
+  gameVersion: string
+  protocolVersion: string
+  buildVersion: string
+  supports: GameCapabilities
+}

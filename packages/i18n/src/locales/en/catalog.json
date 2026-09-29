@@ -1,0 +1,83 @@
+{
+  "source": {
+    "label": "Catalog: {source}",
+    "liveService": "live service",
+    "localPreview": "local preview"
+  },
+  "hero": {
+    "eyebrow": "Unified platform. Purpose-built game clients.",
+    "title": "Modern game center with a central lobby and dedicated lobbies for every title.",
+    "body": "Discover board rooms, arcade heats, and 3D simulation bays from one command deck. The portal is React, but each game client is intended to run on the stack that best fits its gameplay and rendering needs.",
+    "featuredAction": "Enter featured lobby"
+  },
+  "highlights": {
+    "mainLobby": {
+      "index": "01",
+      "title": "Main lobby",
+      "body": "Cross-category discovery, live catalog, and game-specific launch plans."
+    },
+    "gameLobbies": {
+      "index": "02",
+      "title": "Game lobbies",
+      "body": "Each title gets its own room flow, roster controls, and tailored launch data."
+    },
+    "runtimeFit": {
+      "index": "03",
+      "title": "Runtime fit",
+      "body": "React for orchestration, canvas for arcade, and Three.js for simulation."
+    }
+  },
+  "metrics": {
+    "launchReadyExperiences": "Launch-ready experiences",
+    "gameCategories": "Game categories",
+    "platformRuntimeTitle": "Nest modular monolith",
+    "platformRuntimeBody": "Platform metadata and lifecycle orchestration"
+  },
+  "gameMeta": {
+    "names": {
+      "signal-grid": "Signal Grid",
+      "rush-lane": "Rush Lane",
+      "aether-flight": "Aether Flight"
+    },
+    "tagline": {
+      "signal-grid": "Competitive drop-token matches with authoritative turn resolution.",
+      "rush-lane": "Fast reflex racing with a lightweight client loop and session hooks.",
+      "aether-flight": "A cinematic 3D mission bay with room-based simulation sessions."
+    },
+    "playerRange": {
+      "board": "2 players + spectators",
+      "arcade": "1 to 8 players",
+      "simulation": "1 to 4 pilots"
+    },
+    "sessionModes": {
+      "signal-grid": ["Ranked duel", "Private table", "Tournament bracket"],
+      "rush-lane": ["Solo sprint", "Async challenge", "Party heat"],
+      "aether-flight": ["Training sortie", "Co-op mission", "Scenario sandbox"]
+    },
+    "techStack": {
+      "signal-grid": ["Platform web in React", "Gameplay prototype in TypeScript", "Future authoritative board server outside platform-api"],
+      "rush-lane": ["Platform web in React", "Gameplay prototype in TypeScript Canvas", "Future dedicated arcade runtime"],
+      "aether-flight": ["Platform web in React", "Gameplay prototype in Three.js", "Future Unreal-based simulation product path"]
+    },
+    "lobbyTheme": {
+      "signal-grid": "Warm brass, tactical grid overlays, and watch-table controls.",
+      "rush-lane": "High contrast HUD, queue timers, and speed-focused panels.",
+      "aether-flight": "Atmospheric command decks, mission cards, and live telemetry."
+    },
+    "clientSurface": {
+      "signal-grid": "Standalone board client",
+      "rush-lane": "Standalone arcade client",
+      "aether-flight": "Standalone 3D simulation client"
+    },
+    "serverFocus": {
+      "signal-grid": "Platform owns lobby/session metadata only; authoritative board rules move to a dedicated game server.",
+      "rush-lane": "Session provisioning, leaderboard ingestion, and tournament scheduling.",
+      "aether-flight": "Mission presets, squad lobbies, simulation metadata, and live room status."
+    },
+    "descriptions": {
+      "signal-grid": "A premium board arena for tactical play, tournament lobbies, and server-verified moves. The match layer uses server-side state validation, room readiness, and live table updates.",
+      "rush-lane": "A neon runner designed as a standalone canvas game. The lobby focuses on quick join, challenge timers, and leaderboard staging rather than heavy UI chrome.",
+      "aether-flight": "A high-resolution simulation entry built for a 3D runtime instead of React. The lobby surfaces mission settings, wing composition, and simulation readiness before launch."
+    }
+  }
+}

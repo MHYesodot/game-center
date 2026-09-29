@@ -1,0 +1,29 @@
+{
+  "name": "game-center",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run docker:dev",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run build --workspaces --if-present",
+    "validate:i18n": "npm --workspace @game-center/i18n run validate",
+    "dev:web": "npm --workspace @game-center/web run dev",
+    "dev:platform": "npm --workspace @game-center/platform-api run dev",
+    "dev:prototype:board": "npm --prefix games/prototypes/board-arena run dev",
+    "dev:prototype:arcade": "npm --prefix games/prototypes/arcade-runner run dev",
+    "dev:prototype:sim": "npm --prefix games/prototypes/flight-sim run dev",
+    "docker:up": "docker compose up --build",
+    "docker:dev": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up",
+    "docker:dev:build": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build",
+    "docker:down": "docker compose -f docker-compose.yml -f docker-compose.dev.yml down --remove-orphans",
+    "docker:logs": "docker compose -f docker-compose.yml -f docker-compose.dev.yml logs -f",
+    "docker:reset": "docker compose -f docker-compose.yml -f docker-compose.dev.yml down -v --remove-orphans",
+    "ci:quality": "npm run lint ; npm run typecheck ; npm run validate:i18n ; npm run test"
+  }
+}
