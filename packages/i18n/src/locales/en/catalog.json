@@ -2,7 +2,8 @@
   "source": {
     "label": "Catalog: {source}",
     "liveService": "live service",
-    "localPreview": "local preview"
+    "localPreview": "local preview",
+    "liveCatalogError": "Unable to load the live catalog"
   },
   "hero": {
     "eyebrow": "Unified platform. Purpose-built game clients.",

@@ -4,7 +4,13 @@ import { ReadinessService } from '../../infrastructure/readiness.service.js'
 
 @Controller('health')
 export class HealthController {
-  constructor(private readonly readinessService: ReadinessService) {}
+  private readonly readinessService: ReadinessService
+
+  constructor(readinessService: ReadinessService) {
+    this.readinessService = readinessService
+    this.live = this.live.bind(this)
+    this.ready = this.ready.bind(this)
+  }
 
   @Get('live')
   live() {

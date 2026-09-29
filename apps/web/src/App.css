@@ -42,7 +42,7 @@
   display: grid;
   place-items: center;
   color: var(--gc-text-inverse);
-  background: linear-gradient(135deg, #f3c66b, #ff7d66 52%, #77d1ff);
+  background: var(--gc-brand-gradient);
   font-weight: 700;
   letter-spacing: 0.08em;
 }
@@ -109,7 +109,7 @@
   position: absolute;
   inset: auto -14% -40% 40%;
   height: 320px;
-  background: radial-gradient(circle, rgba(119, 209, 255, 0.28), transparent 68%);
+  background: var(--gc-hero-glow);
   pointer-events: none;
 }
 
@@ -187,7 +187,7 @@
 
 .metrics-row div {
   padding: 24px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--gc-surface-panel-muted);
 }
 
 .metrics-row strong {
@@ -215,16 +215,16 @@
   text-decoration: none;
   color: inherit;
   transition:
-    transform 180ms ease,
-    border-color 180ms ease,
-    background 180ms ease;
+    transform var(--gc-motion-fast) ease,
+    border-color var(--gc-motion-fast) ease,
+    background var(--gc-motion-fast) ease;
 }
 
 .featured-card:hover,
 .game-card:hover {
   transform: translateY(-3px);
-  border-color: rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--gc-border-hover);
+  background: var(--gc-surface-hover);
 }
 
 .featured-card p,
@@ -279,7 +279,7 @@
 .detail-list li {
   padding: 12px 14px;
   border-radius: var(--gc-radius-sm);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--gc-surface-muted);
   color: var(--gc-text-secondary);
 }
 
@@ -316,7 +316,7 @@
 .command-panel > div {
   flex: 1 1 180px;
   border-radius: var(--gc-radius-md);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--gc-surface-muted);
 }
 
 .command-panel strong {

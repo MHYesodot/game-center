@@ -1,23 +1,40 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BrowserRouter, Link, NavLink, Route, Routes, useParams } from 'react-router-dom'
+import type { CatalogListResponse, GameDefinition } from '@game-center/contracts'
 import { formatNumber, getTextDirection, translate, translateList, type SupportedLocale } from '@game-center/i18n'
 import './App.css'
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? '/api'
 
-type GameCategory = 'Board' | 'Arcade' | '3D Simulation'
 type GameCategoryKey = 'board' | 'arcade' | 'simulation3d'
+type CatalogSource = 'localPreview' | 'liveService'
+type RemoteCatalogState = {
+  locale: SupportedLocale
+  games: Game[]
+}
 
 type GameSeed = {
-  gameId: string
+  gameId: 'signal-grid' | 'rush-lane' | 'aether-flight'
   slug: string
   categoryKey: GameCategoryKey
   launchCommand: string
 }
 
+type GameLocalizationKeySet = {
+  displayNameKey: string
+  taglineKey: string
+  descriptionKey: string
+  playerRangeKey: string
+  sessionModesKey: string
+  techStackKey: string
+  lobbyThemeKey: string
+  clientSurfaceKey: string
+  serverFocusKey: string
+}
+
 type Game = GameSeed & {
   name: string
-  category: GameCategory
+  categoryLabelKey: string
   tagline: string
   description: string
   playerRange: string
@@ -49,11 +66,66 @@ const gameSeeds: GameSeed[] = [
   },
 ]
 
-const categoryOrder: GameCategory[] = ['Board', 'Arcade', '3D Simulation']
-const categoryKeyByLabel: Record<GameCategory, GameCategoryKey> = {
-  Board: 'board',
-  Arcade: 'arcade',
-  '3D Simulation': 'simulation3d',
+const categoryOrder: GameCategoryKey[] = ['board', 'arcade', 'simulation3d']
+const categoryAnchorByKey: Record<GameCategoryKey, string> = {
+  board: 'board',
+  arcade: 'arcade',
+  simulation3d: '3d-simulation',
+}
+const categoryLabelKeyByCategory: Record<GameCategoryKey, string> = {
+  board: 'navigation.categories.board',
+  arcade: 'navigation.categories.arcade',
+  simulation3d: 'navigation.categories.simulation3d',
+}
+const categoryKeyByTranslationKey: Record<string, GameCategoryKey> = {
+  'navigation.categories.board': 'board',
+  'navigation.categories.arcade': 'arcade',
+  'navigation.categories.simulation3d': 'simulation3d',
+}
+const categoryKeyByCatalogCategory: Record<string, GameCategoryKey> = {
+  board: 'board',
+  arcade: 'arcade',
+  simulation: 'simulation3d',
+  '3d': 'simulation3d',
+}
+const gameLocalizationKeys: Record<GameSeed['gameId'], GameLocalizationKeySet> = {
+  'signal-grid': {
+    displayNameKey: 'catalog.gameMeta.names.signal-grid',
+    taglineKey: 'catalog.gameMeta.tagline.signal-grid',
+    descriptionKey: 'catalog.gameMeta.descriptions.signal-grid',
+    playerRangeKey: 'catalog.gameMeta.playerRange.board',
+    sessionModesKey: 'catalog.gameMeta.sessionModes.signal-grid',
+    techStackKey: 'catalog.gameMeta.techStack.signal-grid',
+    lobbyThemeKey: 'catalog.gameMeta.lobbyTheme.signal-grid',
+    clientSurfaceKey: 'catalog.gameMeta.clientSurface.signal-grid',
+    serverFocusKey: 'catalog.gameMeta.serverFocus.signal-grid',
+  },
+  'rush-lane': {
+    displayNameKey: 'catalog.gameMeta.names.rush-lane',
+    taglineKey: 'catalog.gameMeta.tagline.rush-lane',
+    descriptionKey: 'catalog.gameMeta.descriptions.rush-lane',
+    playerRangeKey: 'catalog.gameMeta.playerRange.arcade',
+    sessionModesKey: 'catalog.gameMeta.sessionModes.rush-lane',
+    techStackKey: 'catalog.gameMeta.techStack.rush-lane',
+    lobbyThemeKey: 'catalog.gameMeta.lobbyTheme.rush-lane',
+    clientSurfaceKey: 'catalog.gameMeta.clientSurface.rush-lane',
+    serverFocusKey: 'catalog.gameMeta.serverFocus.rush-lane',
+  },
+  'aether-flight': {
+    displayNameKey: 'catalog.gameMeta.names.aether-flight',
+    taglineKey: 'catalog.gameMeta.tagline.aether-flight',
+    descriptionKey: 'catalog.gameMeta.descriptions.aether-flight',
+    playerRangeKey: 'catalog.gameMeta.playerRange.simulation',
+    sessionModesKey: 'catalog.gameMeta.sessionModes.aether-flight',
+    techStackKey: 'catalog.gameMeta.techStack.aether-flight',
+    lobbyThemeKey: 'catalog.gameMeta.lobbyTheme.aether-flight',
+    clientSurfaceKey: 'catalog.gameMeta.clientSurface.aether-flight',
+    serverFocusKey: 'catalog.gameMeta.serverFocus.aether-flight',
+  },
+}
+const sourceLabelKeyBySource: Record<CatalogSource, string> = {
+  localPreview: 'catalog.source.localPreview',
+  liveService: 'catalog.source.liveService',
 }
 
 function App({ locale }: { locale: SupportedLocale }) {
@@ -81,15 +153,15 @@ function GameCenter({ locale }: { locale: SupportedLocale }) {
           </span>
         </Link>
         <nav className="topnav">
-          {categoryOrder.map((category) => (
-            <a key={category} href={`#${category.toLowerCase().replace(/\s+/g, '-')}`}>
-              {translate(locale, `navigation.categories.${categoryKeyByLabel[category]}`)}
+          {categoryOrder.map((categoryKey) => (
+            <a key={categoryKey} href={`#${categoryAnchorByKey[categoryKey]}`}>
+              {translate(locale, categoryLabelKeyByCategory[categoryKey])}
             </a>
           ))}
         </nav>
         <div className="source-pill">
           {translate(locale, 'catalog.source.label', {
-            source: translate(locale, source === 'live service' ? 'catalog.source.liveService' : 'catalog.source.localPreview'),
+            source: translate(locale, sourceLabelKeyBySource[source]),
           })}
         </div>
       </header>
@@ -105,9 +177,9 @@ function GameCenter({ locale }: { locale: SupportedLocale }) {
 function HomePage({ games, locale }: { games: Game[]; locale: SupportedLocale }) {
   const categories = useMemo(
     () =>
-      categoryOrder.map((category) => ({
-        category,
-        games: games.filter((game) => game.category === category),
+      categoryOrder.map((categoryKey) => ({
+        categoryKey,
+        games: games.filter((game) => game.categoryKey === categoryKey),
       })),
     [games],
   )
@@ -120,7 +192,7 @@ function HomePage({ games, locale }: { games: Game[]; locale: SupportedLocale })
           <h1>{translate(locale, 'catalog.hero.title')}</h1>
           <p className="hero-text">{translate(locale, 'catalog.hero.body')}</p>
           <div className="hero-actions">
-            <Link className="primary-action" to="/game/signal-grid">
+            <Link className="primary-action" to="/game/signal-grid" data-testid="featured-game-signal-grid-hero">
               {translate(locale, 'catalog.hero.featuredAction')}
             </Link>
             <a className="secondary-action" href="#catalog">
@@ -165,8 +237,13 @@ function HomePage({ games, locale }: { games: Game[]; locale: SupportedLocale })
 
       <section className="featured-strip">
         {games.map((game) => (
-          <Link key={game.slug} className="featured-card" to={`/game/${game.slug}`}>
-            <p>{translate(locale, `navigation.categories.${game.categoryKey}`)}</p>
+          <Link
+            key={game.slug}
+            className="featured-card"
+            to={`/game/${game.slug}`}
+            data-testid={`featured-game-${game.gameId}`}
+          >
+            <p>{translate(locale, game.categoryLabelKey)}</p>
             <h2>{game.name}</h2>
             <span>{game.tagline}</span>
           </Link>
@@ -174,13 +251,13 @@ function HomePage({ games, locale }: { games: Game[]; locale: SupportedLocale })
       </section>
 
       <section className="catalog-section" id="catalog">
-        {categories.map(({ category, games: categoryGames }) => (
-          <div className="category-block" id={category.toLowerCase().replace(/\s+/g, '-')} key={category}>
+        {categories.map(({ categoryKey, games: categoryGames }) => (
+          <div className="category-block" id={categoryAnchorByKey[categoryKey]} key={categoryKey}>
             <div className="section-heading">
-              <p className="eyebrow">{translate(locale, `navigation.categories.${categoryKeyByLabel[category]}`)}</p>
+              <p className="eyebrow">{translate(locale, categoryLabelKeyByCategory[categoryKey])}</p>
               <h2>
                 {translate(locale, 'common.formats.categoryLobbies', {
-                  category: translate(locale, `navigation.categories.${categoryKeyByLabel[category]}`),
+                  category: translate(locale, categoryLabelKeyByCategory[categoryKey]),
                 })}
               </h2>
             </div>
@@ -223,7 +300,7 @@ function GameLobbyPage({ games, locale }: { games: Game[]; locale: SupportedLoca
           <div className="lobby-main">
             <p className="eyebrow">{translate(locale, 'lobby.notFound.eyebrow')}</p>
             <h1>{translate(locale, 'lobby.notFound.title')}</h1>
-            <Link className="primary-action" to="/">
+            <Link className="primary-action" to="/" data-testid="lobby-return-main">
               {translate(locale, 'common.actions.returnToMainLobby')}
             </Link>
           </div>
@@ -244,14 +321,14 @@ function GameLobbyPage({ games, locale }: { games: Game[]; locale: SupportedLoca
         <div className="lobby-main">
           <p className="eyebrow">
             {translate(locale, 'lobby.detail.eyebrow', {
-              category: translate(locale, `navigation.categories.${game.categoryKey}`),
+              category: translate(locale, game.categoryLabelKey),
             })}
           </p>
           <h1>{game.name}</h1>
           <p className="hero-text">{game.description}</p>
 
           <div className="hero-actions">
-            <Link className="primary-action" to="/">
+            <Link className="primary-action" to="/" data-testid="lobby-back-to-catalog">
               {translate(locale, 'common.actions.backToCatalog')}
             </Link>
             <NavLink className="secondary-action" to={`/game/${game.slug}`}>
@@ -305,56 +382,39 @@ function GameLobbyPage({ games, locale }: { games: Game[]; locale: SupportedLoca
   )
 }
 
-type RemoteCatalogGame = {
-  gameId: string
-  slug?: string
-  name: string
-  summary?: string
-  category?: string
-  manifest?: {
-    category?: string
-  }
-}
-
-const categoryLabels: Record<string, GameCategory> = {
-  board: 'Board',
-  arcade: 'Arcade',
-  simulation: '3D Simulation',
-  '3d': '3D Simulation',
-}
-
-const categoryKeyByCatalogCategory: Record<string, GameCategoryKey> = {
-  board: 'board',
-  arcade: 'arcade',
-  simulation: 'simulation3d',
-  '3d': 'simulation3d',
+function getLocalizationKeys(gameId: GameSeed['gameId']): GameLocalizationKeySet {
+  return gameLocalizationKeys[gameId]
 }
 
 function localizeGame(seed: GameSeed, locale: SupportedLocale): Game {
-  const category = categoryLabels[seed.categoryKey === 'simulation3d' ? 'simulation' : seed.categoryKey]
+  const localizationKeys = getLocalizationKeys(seed.gameId)
 
   return {
     ...seed,
-    name: translate(locale, `catalog.gameMeta.names.${seed.gameId}`),
-    category,
-    tagline: translate(locale, `catalog.gameMeta.tagline.${seed.gameId}`),
-    description: translate(locale, `catalog.gameMeta.descriptions.${seed.gameId}`),
-    playerRange: translate(
-      locale,
-      `catalog.gameMeta.playerRange.${seed.categoryKey === 'simulation3d' ? 'simulation' : seed.categoryKey}`,
-    ),
-    sessionModes: translateList(locale, `catalog.gameMeta.sessionModes.${seed.gameId}`),
-    techStack: translateList(locale, `catalog.gameMeta.techStack.${seed.gameId}`),
-    lobbyTheme: translate(locale, `catalog.gameMeta.lobbyTheme.${seed.gameId}`),
-    clientSurface: translate(locale, `catalog.gameMeta.clientSurface.${seed.gameId}`),
-    serverFocus: translate(locale, `catalog.gameMeta.serverFocus.${seed.gameId}`),
+    name: translate(locale, localizationKeys.displayNameKey),
+    categoryLabelKey: categoryLabelKeyByCategory[seed.categoryKey],
+    tagline: translate(locale, localizationKeys.taglineKey),
+    description: translate(locale, localizationKeys.descriptionKey),
+    playerRange: translate(locale, localizationKeys.playerRangeKey),
+    sessionModes: translateList(locale, localizationKeys.sessionModesKey),
+    techStack: translateList(locale, localizationKeys.techStackKey),
+    lobbyTheme: translate(locale, localizationKeys.lobbyThemeKey),
+    clientSurface: translate(locale, localizationKeys.clientSurfaceKey),
+    serverFocus: translate(locale, localizationKeys.serverFocusKey),
   }
 }
 
-function mergeRemoteCatalogGameWithLocale(
-  remoteGame: RemoteCatalogGame,
-  locale: SupportedLocale,
-): Game | null {
+function getCategoryKey(remoteGame: RemoteCatalogGame, fallbackSeed: GameSeed): GameCategoryKey {
+  if (remoteGame.categoryKey) {
+    return categoryKeyByTranslationKey[remoteGame.categoryKey] ?? fallbackSeed.categoryKey
+  }
+
+  return categoryKeyByCatalogCategory[remoteGame.manifest.category] ?? fallbackSeed.categoryKey
+}
+
+type RemoteCatalogGame = GameDefinition
+
+function mergeRemoteCatalogGameWithLocale(remoteGame: RemoteCatalogGame, locale: SupportedLocale): Game | null {
   const fallbackSeed =
     gameSeeds.find((game) => game.gameId === remoteGame.gameId) ??
     gameSeeds.find((game) => game.slug === remoteGame.slug)
@@ -364,23 +424,23 @@ function mergeRemoteCatalogGameWithLocale(
   }
 
   const fallbackGame = localizeGame(fallbackSeed, locale)
-  const category = remoteGame.manifest?.category ?? remoteGame.category
+  const categoryKey = getCategoryKey(remoteGame, fallbackSeed)
+  const localizationKeys = getLocalizationKeys(fallbackSeed.gameId)
 
   return {
     ...fallbackGame,
-    slug: remoteGame.slug ?? fallbackGame.slug,
-    category: category ? categoryLabels[category] ?? fallbackGame.category : fallbackGame.category,
-    categoryKey: category ? categoryKeyByCatalogCategory[category] ?? fallbackGame.categoryKey : fallbackGame.categoryKey,
+    slug: remoteGame.slug,
+    categoryKey,
+    categoryLabelKey: remoteGame.categoryKey ?? categoryLabelKeyByCategory[categoryKey],
+    name: translate(locale, remoteGame.displayNameKey ?? localizationKeys.displayNameKey),
+    tagline: translate(locale, remoteGame.taglineKey ?? localizationKeys.taglineKey),
+    description: translate(locale, remoteGame.descriptionKey ?? localizationKeys.descriptionKey),
   }
 }
 
 function useGameCatalog(locale: SupportedLocale) {
-  const [games, setGames] = useState<Game[]>(() => gameSeeds.map((game) => localizeGame(game, locale)))
-  const [source, setSource] = useState('local preview')
-
-  useEffect(() => {
-    setGames(gameSeeds.map((game) => localizeGame(game, locale)))
-  }, [locale])
+  const fallbackGames = useMemo(() => gameSeeds.map((game) => localizeGame(game, locale)), [locale])
+  const [remoteCatalog, setRemoteCatalog] = useState<RemoteCatalogState | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -395,30 +455,37 @@ function useGameCatalog(locale: SupportedLocale) {
           return
         }
 
-        const payload = (await response.json()) as { games?: RemoteCatalogGame[] } | RemoteCatalogGame[]
+        const payload = (await response.json()) as CatalogListResponse | RemoteCatalogGame[]
         const remoteGames = Array.isArray(payload) ? payload : payload.games
 
-        if (remoteGames && remoteGames.length > 0) {
+        if (remoteGames.length > 0) {
           const mergedGames = remoteGames
             .map((game) => mergeRemoteCatalogGameWithLocale(game, locale))
             .filter((game): game is Game => game !== null)
 
           if (mergedGames.length > 0) {
-            setGames(mergedGames)
-            setSource('live service')
+            setRemoteCatalog({ locale, games: mergedGames })
           }
         }
-      } catch {
-        setSource('local preview')
-      }
+      } catch {}
     }
 
     void loadGames()
 
     return () => controller.abort()
-  }, [locale])
+  }, [fallbackGames, locale])
 
-  return { games, source }
+  if (remoteCatalog?.locale === locale) {
+    return {
+      games: remoteCatalog.games,
+      source: 'liveService' as CatalogSource,
+    }
+  }
+
+  return {
+    games: fallbackGames,
+    source: 'localPreview' as CatalogSource,
+  }
 }
 
 export default App

@@ -6,16 +6,20 @@ const games: CatalogGame[] = [
   {
     gameId: 'signal-grid',
     slug: 'signal-grid',
-    name: 'Signal Grid',
     status: 'active',
     tags: ['board', 'ranked', 'dedicated-server'],
-    summaryKey: 'catalog.gameMeta.tagline.signal-grid',
+    categoryKey: 'navigation.categories.board',
+    displayNameKey: 'catalog.gameMeta.names.signal-grid',
+    descriptionKey: 'catalog.gameMeta.descriptions.signal-grid',
+    taglineKey: 'catalog.gameMeta.tagline.signal-grid',
     manifest: {
       gameId: 'signal-grid',
       slug: 'signal-grid',
-      name: 'Signal Grid',
       category: 'board',
-      summaryKey: 'catalog.gameMeta.tagline.signal-grid',
+      categoryKey: 'navigation.categories.board',
+      displayNameKey: 'catalog.gameMeta.names.signal-grid',
+      descriptionKey: 'catalog.gameMeta.descriptions.signal-grid',
+      taglineKey: 'catalog.gameMeta.tagline.signal-grid',
       runtime: {
         clientRuntime: 'web',
         engine: 'prototype-dom',
@@ -50,16 +54,20 @@ const games: CatalogGame[] = [
   {
     gameId: 'rush-lane',
     slug: 'rush-lane',
-    name: 'Rush Lane',
     status: 'active',
     tags: ['arcade', 'shared-runtime', 'quick-play'],
-    summaryKey: 'catalog.gameMeta.tagline.rush-lane',
+    categoryKey: 'navigation.categories.arcade',
+    displayNameKey: 'catalog.gameMeta.names.rush-lane',
+    descriptionKey: 'catalog.gameMeta.descriptions.rush-lane',
+    taglineKey: 'catalog.gameMeta.tagline.rush-lane',
     manifest: {
       gameId: 'rush-lane',
       slug: 'rush-lane',
-      name: 'Rush Lane',
       category: 'arcade',
-      summaryKey: 'catalog.gameMeta.tagline.rush-lane',
+      categoryKey: 'navigation.categories.arcade',
+      displayNameKey: 'catalog.gameMeta.names.rush-lane',
+      descriptionKey: 'catalog.gameMeta.descriptions.rush-lane',
+      taglineKey: 'catalog.gameMeta.tagline.rush-lane',
       runtime: {
         clientRuntime: 'web',
         engine: 'prototype-canvas',
@@ -94,16 +102,20 @@ const games: CatalogGame[] = [
   {
     gameId: 'aether-flight',
     slug: 'aether-flight',
-    name: 'Aether Flight',
     status: 'active',
     tags: ['simulation', '3d', 'mission-bay'],
-    summaryKey: 'catalog.gameMeta.tagline.aether-flight',
+    categoryKey: 'navigation.categories.simulation3d',
+    displayNameKey: 'catalog.gameMeta.names.aether-flight',
+    descriptionKey: 'catalog.gameMeta.descriptions.aether-flight',
+    taglineKey: 'catalog.gameMeta.tagline.aether-flight',
     manifest: {
       gameId: 'aether-flight',
       slug: 'aether-flight',
-      name: 'Aether Flight',
       category: 'simulation',
-      summaryKey: 'catalog.gameMeta.tagline.aether-flight',
+      categoryKey: 'navigation.categories.simulation3d',
+      displayNameKey: 'catalog.gameMeta.names.aether-flight',
+      descriptionKey: 'catalog.gameMeta.descriptions.aether-flight',
+      taglineKey: 'catalog.gameMeta.tagline.aether-flight',
       runtime: {
         clientRuntime: 'web',
         engine: 'prototype-threejs-preview',
@@ -139,7 +151,7 @@ const games: CatalogGame[] = [
 
 @Injectable()
 export class InMemoryCatalogRepository {
-  list() {
+  list(): CatalogGame[] {
     return games
   }
 }

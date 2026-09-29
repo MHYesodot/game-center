@@ -18,3 +18,15 @@ export type QueueProposal = MatchProposal
 export type ProposedMatch = Match
 
 export type MatchmakingSnapshot = MatchmakingOverview
+
+export function getActiveQueueTickets(snapshot: MatchmakingSnapshot) {
+  return snapshot.tickets.filter((ticket) => ticket.state !== 'cancelled' && ticket.state !== 'expired')
+}
+
+export function getPendingMatchProposals(snapshot: MatchmakingSnapshot) {
+  return snapshot.proposals.filter((proposal) => proposal.acceptedTicketIds.length < proposal.ticketIds.length)
+}
+
+export function getMatchesAwaitingSession(snapshot: MatchmakingSnapshot) {
+  return snapshot.matches.filter((match) => match.state === 'allocating-session')
+}

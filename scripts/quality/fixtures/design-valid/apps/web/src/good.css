@@ -1,0 +1,4 @@
+.card {
+  color: var(--gc-text-primary);
+  background: var(--gc-surface-primary);
+}

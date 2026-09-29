@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import type { CatalogListResponse, GameDefinition } from '@game-center/contracts'
 
 import { InMemoryCatalogRepository } from '../infrastructure/catalog.repository.js'
 
@@ -6,7 +7,18 @@ import { InMemoryCatalogRepository } from '../infrastructure/catalog.repository.
 export class CatalogService {
   constructor(private readonly catalogRepository: InMemoryCatalogRepository) {}
 
-  listGames() {
-    return this.catalogRepository.list()
+  listGames(): CatalogListResponse {
+    return {
+      games: this.catalogRepository.list().map((game) => this.toResponse(game)),
+    }
+  }
+
+  private toResponse(game: GameDefinition): GameDefinition {
+    return {
+      ...game,
+      manifest: {
+        ...game.manifest,
+      },
+    }
   }
 }

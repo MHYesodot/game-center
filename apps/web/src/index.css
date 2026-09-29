@@ -32,6 +32,12 @@
   --gc-shadow-soft: 0 18px 60px rgba(2, 10, 16, 0.36);
   --gc-shadow-action: 0 16px 40px rgba(255, 125, 102, 0.25);
   --gc-accent-text: #f3c66b;
+  --gc-brand-gradient: linear-gradient(135deg, #f3c66b, #ff7d66 52%, #77d1ff);
+  --gc-hero-glow: radial-gradient(circle, rgba(119, 209, 255, 0.28), transparent 68%);
+  --gc-surface-muted: rgba(255, 255, 255, 0.05);
+  --gc-surface-panel-muted: rgba(255, 255, 255, 0.03);
+  --gc-surface-hover: rgba(255, 255, 255, 0.08);
+  --gc-border-hover: rgba(255, 255, 255, 0.18);
   --gc-radius-sm: 16px;
   --gc-radius-md: 20px;
   --gc-radius-lg: 24px;

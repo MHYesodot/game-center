@@ -1,0 +1,1 @@
+export const Screen = () => <div>Welcome to the lobby</div>

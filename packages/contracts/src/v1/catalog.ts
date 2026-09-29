@@ -37,9 +37,11 @@ export type GameVersion = {
 export type GameManifest = {
   gameId: string
   slug: string
-  name: string
   category: CatalogGameCategory
-  summaryKey: string
+  categoryKey: string
+  displayNameKey: string
+  descriptionKey: string
+  taglineKey: string
   runtime: GameRuntime
   version: GameVersion
   capabilities: GameCapabilities
@@ -60,10 +62,12 @@ export type GameManifest = {
 export type GameDefinition = {
   gameId: string
   slug: string
-  name: string
   status: GameLifecycleStatus
   tags: string[]
-  summaryKey: string
+  categoryKey: string
+  displayNameKey: string
+  descriptionKey: string
+  taglineKey: string
   manifest: GameManifest
 }
 
@@ -74,8 +78,11 @@ export type CatalogListResponse = {
 export type CatalogGameManifest = {
   gameId: string
   slug: string
-  name: string
   category: CatalogGameCategory
+  categoryKey: string
+  displayNameKey: string
+  descriptionKey: string
+  taglineKey: string
   runtime: GameClientRuntime
   engine: string
   serverType: GameServerType

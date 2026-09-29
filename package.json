@@ -9,10 +9,15 @@
   "scripts": {
     "dev": "npm run docker:dev",
     "build": "npm run build --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test:unit",
+    "test:unit": "vitest run",
+    "test:e2e": "playwright test",
+    "lint": "npm --workspace @game-center/web run lint && npm --workspace @game-center/platform-api run lint",
     "typecheck": "npm run build --workspaces --if-present",
     "validate:i18n": "npm --workspace @game-center/i18n run validate",
+    "validate:architecture": "node ./scripts/quality/validate-architecture.mjs",
+    "validate:design": "node ./scripts/quality/validate-design.mjs",
+    "validate": "npm run validate:i18n && npm run validate:design && npm run validate:architecture",
     "dev:web": "npm --workspace @game-center/web run dev",
     "dev:platform": "npm --workspace @game-center/platform-api run dev",
     "dev:prototype:board": "npm --prefix games/prototypes/board-arena run dev",
@@ -24,6 +29,12 @@
     "docker:down": "docker compose -f docker-compose.yml -f docker-compose.dev.yml down --remove-orphans",
     "docker:logs": "docker compose -f docker-compose.yml -f docker-compose.dev.yml logs -f",
     "docker:reset": "docker compose -f docker-compose.yml -f docker-compose.dev.yml down -v --remove-orphans",
-    "ci:quality": "npm run lint ; npm run typecheck ; npm run validate:i18n ; npm run test"
+    "ci:quality": "npm run lint && npm run typecheck && npm run validate && npm run test:unit && npm run build"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
+    "@playwright/test": "^1.55.0",
+    "typescript": "~6.0.2",
+    "vitest": "^3.2.4"
   }
 }

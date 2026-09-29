@@ -1,4 +1,5 @@
 import { Controller, Get } from '@nestjs/common'
+import type { CatalogListResponse } from '@game-center/contracts'
 
 import { CatalogService } from '../application/catalog.service.js'
 
@@ -7,7 +8,7 @@ export class CatalogController {
   constructor(private readonly catalogService: CatalogService) {}
 
   @Get('games')
-  listGames() {
-    return { games: this.catalogService.listGames() }
+  listGames(): CatalogListResponse {
+    return this.catalogService.listGames()
   }
 }
