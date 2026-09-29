@@ -20,9 +20,9 @@ Phase 1 uses a modular monolith for platform backend domains rather than service
 | `apps/portal` | `apps/web` | `MOVE` + `REFACTOR` | Keep React/Vite direction, add TanStack Query, replace hardcoded catalog coupling with contracts |
 | `services/lobby-server` | `services/platform-api` | `REPLACE` | Rebuild as NestJS modular monolith and move only platform concerns |
 | `apps/board-arena` | `games/prototypes/board-arena` | `MOVE AS PROTOTYPE REFERENCE` | No major gameplay refactor in Phase 1 |
-| board logic inside `services/lobby-server` | `games/production/board/...` | `DO NOT MIGRATE NOW` | Keep marked as prototype until a real authoritative board server exists |
-| `apps/arcade-runner` | `games/prototypes/arcade-runner` | `MOVE AS PROTOTYPE REFERENCE` | Final engine decision required before production path |
-| `apps/flight-sim` | `games/prototypes/flight-sim` | `MOVE AS PREVIEW REFERENCE` | UE5 product path remains separate |
+| board logic inside `services/lobby-server` | `games/production/board/...` | `DO NOT MIGRATE NOW` | Production board direction is web or Godot client plus authoritative Go server |
+| `apps/arcade-runner` | `games/prototypes/arcade-runner` | `MOVE AS PROTOTYPE REFERENCE` | Production replacement must use Phaser, PixiJS, or Godot |
+| `apps/flight-sim` | `games/prototypes/flight-sim` | `MOVE AS PREVIEW REFERENCE` | Three.js preview only; UE5 product path remains separate |
 | root docs | `docs/architecture`, `docs/adr`, `docs/contracts`, `docs/development` | `EXPAND` | Make docs authoritative before major code changes |
 | root workspace packages | `packages/contracts`, `packages/config`, `packages/observability`, `packages/ui`, `packages/platform-sdk-ts` | `ADD` | Shared code must be contracts/config/tooling first, not gameplay logic |
 
@@ -102,6 +102,7 @@ The following are intentionally deferred until after architecture approval:
 - production-grade auth flow
 - full database migrations for all future services
 - full game runtime selection per product beyond prototype classification
+- production implementation of new game clients
 - Kubernetes manifests
 
 ## Exit Criteria For This Architecture Phase

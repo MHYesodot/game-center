@@ -156,8 +156,8 @@ Impact:
 | `apps/portal` | `KEEP` + `MOVE` + `REFACTOR` | Correct platform-web direction, but should become `apps/web` and consume contracts rather than local hardcoded catalog state |
 | `services/lobby-server` | `REPLACE` | Correct domain area but wrong framework and wrong boundary; game logic must be removed from platform service |
 | `apps/board-arena` | `PROTOTYPE ONLY` | Useful UX/interaction reference only; final board product requires dedicated `games/board/...` structure and authoritative Go server |
-| `apps/arcade-runner` | `PROTOTYPE ONLY` | Useful pacing reference only; final engine must be chosen deliberately per product |
-| `apps/flight-sim` | `PROTOTYPE ONLY` | Keep as preview reference; not valid as final full-scale simulation architecture |
+| `apps/arcade-runner` | `PROTOTYPE ONLY` | Useful pacing reference only; production arcade direction is Phaser, PixiJS, or Godot |
+| `apps/flight-sim` | `PROTOTYPE ONLY` | Keep as browser preview reference only; production simulation direction is Unreal Engine 5 |
 | Root workspace | `KEEP` + `EXPAND` | Monorepo direction is correct, but structure must change substantially |
 
 ## Immediate Gaps Against Target Architecture

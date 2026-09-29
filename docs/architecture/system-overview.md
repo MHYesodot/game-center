@@ -8,6 +8,8 @@ Game Center is a platform, not a bundle of web mini-games.
 
 This document is also constrained by mandatory architecture invariants for localization, design tokens, platform targets, automated testing, and shared-code boundaries.
 
+Game client architecture decisions for production titles are defined in `docs/architecture/game-client-architecture.md`. Prototype game clients under `games/prototypes/` are reference assets only and must not be hardened into production architecture.
+
 The platform owns cross-game capabilities such as identity, social graph, lobbying, matchmaking, session metadata, achievements, rankings, inventory, chat, moderation, notifications, telemetry, and administration.
 
 Each game is an independent game product that integrates with the platform through explicit contracts and SDKs. The platform must not dictate the game engine or gameplay server technology beyond the approved architecture rules.
@@ -91,8 +93,10 @@ Default language and runtime choices are fixed unless an ADR approves an excepti
 | Platform business runtime | NestJS + TypeScript modular monolith |
 | Realtime gateway | Go |
 | Board / turn-based authoritative servers | Go |
-| Web arcade clients | Phaser or PixiJS unless a different engine is justified |
+| Board game clients | Web or Godot depending on title |
+| Web arcade clients | Phaser, PixiJS, or Godot unless a different engine is justified by ADR |
 | High-end 3D / simulation | Unreal Engine 5 + C++ / Blueprints |
+| Browser 3D preview | Three.js only for preview / visualization / prototype use |
 | Database | PostgreSQL |
 | Cache / ephemeral state | Redis |
 | Messaging | NATS JetStream |
@@ -245,6 +249,8 @@ Game products own:
 - AI
 - authoritative result generation
 - replays and game-specific persistence
+
+Production game clients must also preserve internal client boundaries between bootstrap, domain, state, systems, input, rendering, UI, localization, platform adapter, and tests.
 
 ## Platform-to-Game Contract Model
 

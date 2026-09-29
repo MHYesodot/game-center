@@ -27,10 +27,10 @@
 | Component | Responsibility | Language | Framework | Runtime | Containerized | Database | Communication | Reason |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Board game server | Authoritative turn rules, validation, state | Go | Native Go service | Go runtime | Yes | Game-owned storage as needed | Session contract + events | Go is default for turn-based authoritative servers |
-| Board game client | Product-specific board UX | TypeScript or engine-specific | Product-specific | Browser / native | Yes if web | None directly | Platform SDK + game server protocol | Client choice should fit the product |
-| Arcade web client | Arcade gameplay loop | TypeScript | Phaser or PixiJS by default | Browser | Yes | None directly | Platform SDK + game protocol | Canvas/WebGL engine is more appropriate than DOM |
+| Board game client | Product-specific board UX | TypeScript or engine-specific | Web stack or Godot depending on title | Browser / native | Yes if web | None directly | Platform SDK + game server protocol | Board production direction is web or Godot, never platform-owned game logic |
+| Arcade web client | Arcade gameplay loop | TypeScript | Phaser, PixiJS, or Godot by default | Browser | Yes | None directly | Platform SDK + game protocol | Single-file DOM/canvas implementations remain prototype-only unless an exception is documented |
 | Arcade authoritative backend | Score validation or match authority if needed | Go or product-specific | Native service | Go runtime | Yes | Game-owned | Session contract + events | Depends on realtime / anti-cheat needs |
-| High-end simulation client | Rendering, simulation UX | C++ / Blueprints | Unreal Engine 5 | Native | Separate delivery | Game-owned | Platform SDK + dedicated server protocol | Best fit for full-scale 3D/simulation workload |
+| High-end simulation client | Rendering, simulation UX | C++ / Blueprints | Unreal Engine 5 | Native | Separate delivery | Game-owned | Platform SDK + dedicated server protocol | Three.js is not a production simulation engine |
 | Simulation dedicated server | Authoritative simulation state | C++ | Unreal dedicated server | Native | Yes | Game-owned | Session contract + events | Keeps gameplay and simulation authority inside the product |
 
 ## Shared Infrastructure

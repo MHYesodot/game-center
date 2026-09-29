@@ -9,6 +9,8 @@ The current codebase contains a platform web prototype, gameplay prototypes, and
 Start here:
 
 - `docs/architecture/system-overview.md`
+- `docs/architecture/game-client-architecture.md`
+- `docs/architecture/prototype-game-client-audit.md`
 - `docs/architecture/current-state-audit.md`
 - `docs/architecture/repository-migration-plan.md`
 - `docs/architecture/technology-matrix.md`
@@ -22,7 +24,7 @@ Start here:
 - `services/realtime-gateway` -> Go skeleton only
 - `games/prototypes/board-arena` -> board prototype, reference only
 - `games/prototypes/arcade-runner` -> arcade prototype, reference only
-- `games/prototypes/flight-sim` -> 3D preview prototype, reference only
+- `games/prototypes/flight-sim` -> 3D preview prototype, reference only, not a production simulation path
 - `services/_deprecated/lobby-server` -> deprecated prototype, not part of the default platform runtime
 
 ## Current Build
@@ -45,3 +47,9 @@ npm run docker:reset
 ```
 
 Prototype inspection commands remain available but are not part of the default platform development flow.
+
+Production game direction is fixed by architecture decisions rather than by the current prototypes:
+
+- board titles -> web or Godot client depending on title, authoritative Go server
+- arcade titles -> Phaser, PixiJS, or Godot
+- high-end racing / flight / simulation -> Unreal Engine 5 + C++ / Blueprints + Unreal dedicated server

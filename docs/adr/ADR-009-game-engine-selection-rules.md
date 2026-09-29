@@ -11,9 +11,11 @@ Game Center must support many game categories. The platform must not force one e
 Adopt the following defaults:
 
 - Board / turn-based authoritative servers -> Go
-- Web arcade titles -> Phaser or PixiJS unless justified otherwise
-- High-end 3D / simulation -> Unreal Engine 5 with C++ / Blueprints
-- Three.js -> previews, visualizations, lightweight browser experiences
+- Board clients -> web or Godot depending on title
+- Web arcade titles -> Phaser, PixiJS, or Godot unless justified otherwise
+- High-end 3D / simulation -> Unreal Engine 5 with C++ / Blueprints and Unreal dedicated server
+- Three.js -> previews, visualizations, lightweight browser experiences, and prototypes only
+- Vanilla Canvas / DOM gameplay clients -> prototype-only unless a concrete technical exception is documented
 
 Unity may be used only with a concrete justification for a specific game.
 
@@ -27,3 +29,4 @@ Unity may be used only with a concrete justification for a specific game.
 
 - Current Three.js and canvas prototypes remain references, not final engine policy.
 - New game products require an explicit runtime decision before implementation scale-up.
+- Production game clients must follow the structural rules later formalized in ADR-020.
