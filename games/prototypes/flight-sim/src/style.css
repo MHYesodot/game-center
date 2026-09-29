@@ -1,8 +1,19 @@
 :root {
-  color: #edf7ff;
-  background:
+  --sim-color-text: #edf7ff;
+  --sim-color-muted-text: rgba(237, 247, 255, 0.74);
+  --sim-color-accent: #7fcfff;
+  --sim-color-panel-border: rgba(120, 212, 255, 0.12);
+  --sim-color-panel: rgba(4, 11, 25, 0.82);
+  --sim-color-card-top: rgba(127, 207, 255, 0.14);
+  --sim-color-card-bottom: rgba(127, 207, 255, 0.03);
+  --sim-color-overlay: rgba(4, 11, 25, 0.72);
+  --sim-background:
     radial-gradient(circle at top, rgba(102, 197, 255, 0.14), transparent 28%),
     linear-gradient(180deg, #040913 0%, #071120 100%);
+  --sim-radius-panel: 30px;
+  --sim-radius-card: 24px;
+  color: var(--sim-color-text);
+  background: var(--sim-background);
   font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
 }
 
@@ -26,9 +37,9 @@ body {
 
 .sim-header,
 .sim-stage {
-  border-radius: 30px;
-  border: 1px solid rgba(120, 212, 255, 0.12);
-  background: rgba(4, 11, 25, 0.82);
+  border-radius: var(--sim-radius-panel);
+  border: 1px solid var(--sim-color-panel-border);
+  background: var(--sim-color-panel);
 }
 
 .sim-header {
@@ -43,7 +54,7 @@ body {
   margin: 0 0 10px;
   text-transform: uppercase;
   letter-spacing: 0.16em;
-  color: #7fcfff;
+  color: var(--sim-color-accent);
   font-size: 0.8rem;
 }
 
@@ -60,7 +71,7 @@ h1 {
 }
 
 p {
-  color: rgba(237, 247, 255, 0.74);
+  color: var(--sim-color-muted-text);
   line-height: 1.6;
 }
 
@@ -69,15 +80,15 @@ p {
   gap: 8px;
   align-content: start;
   padding: 20px;
-  border-radius: 24px;
-  background: linear-gradient(180deg, rgba(127, 207, 255, 0.14), rgba(127, 207, 255, 0.03));
+  border-radius: var(--sim-radius-card);
+  background: linear-gradient(180deg, var(--sim-color-card-top), var(--sim-color-card-bottom));
 }
 
 .sim-stats span,
 .sim-overlay span {
   text-transform: uppercase;
   letter-spacing: 0.14em;
-  color: #7fcfff;
+  color: var(--sim-color-accent);
   font-size: 0.75rem;
 }
 
@@ -95,7 +106,7 @@ p {
 #sim-canvas {
   width: 100%;
   display: block;
-  border-radius: 24px;
+  border-radius: var(--sim-radius-card);
 }
 
 .sim-overlay {
@@ -112,7 +123,7 @@ p {
   min-width: 220px;
   padding: 18px 20px;
   border-radius: 20px;
-  background: rgba(4, 11, 25, 0.72);
+  background: var(--sim-color-overlay);
   backdrop-filter: blur(14px);
 }
 

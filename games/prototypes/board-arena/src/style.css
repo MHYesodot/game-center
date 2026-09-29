@@ -1,6 +1,28 @@
 :root {
-  color: #f9f4ea;
-  background: radial-gradient(circle at top, rgba(210, 155, 76, 0.16), transparent 30%), #19120d;
+  --board-color-text: #f9f4ea;
+  --board-color-heading: #fff7eb;
+  --board-color-muted-text: rgba(255, 241, 223, 0.78);
+  --board-color-accent: #f3c884;
+  --board-color-panel: rgba(44, 30, 19, 0.78);
+  --board-color-panel-border: rgba(255, 231, 194, 0.12);
+  --board-color-status-top: rgba(255, 220, 154, 0.16);
+  --board-color-status-bottom: rgba(255, 220, 154, 0.04);
+  --board-color-surface: rgba(17, 11, 6, 0.56);
+  --board-color-cell-border: rgba(255, 255, 255, 0.08);
+  --board-color-cell-gloss-top: rgba(255, 255, 255, 0.2);
+  --board-color-cell-gloss-bottom: rgba(255, 255, 255, 0.02);
+  --board-color-token-one: #e4aa34;
+  --board-color-token-one-highlight: #ffe59a;
+  --board-color-token-two: #336cff;
+  --board-color-token-two-highlight: #8fd5ff;
+  --board-color-button-text: #22140c;
+  --board-background: radial-gradient(circle at top, rgba(210, 155, 76, 0.16), transparent 30%), #19120d;
+  --board-radius-panel: 28px;
+  --board-radius-card: 22px;
+  --board-spacing-page: 32px;
+  --board-spacing-section: 24px;
+  color: var(--board-color-text);
+  background: var(--board-background);
   font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
 }
 
@@ -23,15 +45,15 @@ button {
 .board-shell {
   max-width: 1280px;
   margin: 0 auto;
-  padding: 32px;
+  padding: var(--board-spacing-page);
 }
 
 .board-hero,
 .board-card,
 .side-panel article {
-  background: rgba(44, 30, 19, 0.78);
-  border: 1px solid rgba(255, 231, 194, 0.12);
-  border-radius: 28px;
+  background: var(--board-color-panel);
+  border: 1px solid var(--board-color-panel-border);
+  border-radius: var(--board-radius-panel);
 }
 
 .board-hero {
@@ -39,14 +61,14 @@ button {
   grid-template-columns: minmax(0, 1.2fr) 260px;
   gap: 20px;
   padding: 28px;
-  margin-bottom: 24px;
+  margin-bottom: var(--board-spacing-section);
 }
 
 .eyebrow {
   margin: 0 0 10px;
   text-transform: uppercase;
   letter-spacing: 0.16em;
-  color: #f3c884;
+  color: var(--board-color-accent);
   font-size: 0.8rem;
 }
 
@@ -60,7 +82,7 @@ ul {
 h1,
 h2,
 strong {
-  color: #fff7eb;
+  color: var(--board-color-heading);
 }
 
 h1 {
@@ -77,14 +99,14 @@ h2 {
 .status-card p,
 li,
 .board-toolbar span {
-  color: rgba(255, 241, 223, 0.78);
+  color: var(--board-color-muted-text);
   line-height: 1.6;
 }
 
 .status-card {
   padding: 20px;
-  border-radius: 22px;
-  background: linear-gradient(180deg, rgba(255, 220, 154, 0.16), rgba(255, 220, 154, 0.04));
+  border-radius: var(--board-radius-card);
+  background: linear-gradient(180deg, var(--board-color-status-top), var(--board-color-status-bottom));
 }
 
 .status-card span {
@@ -92,7 +114,7 @@ li,
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.14em;
-  color: #f3c884;
+  color: var(--board-color-accent);
   margin-bottom: 8px;
 }
 
@@ -105,7 +127,7 @@ li,
 .board-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 24px;
+  gap: var(--board-spacing-section);
 }
 
 .board-card {
@@ -124,8 +146,8 @@ li,
   padding: 12px 18px;
   border-radius: 999px;
   border: none;
-  background: linear-gradient(135deg, #f3c884, #ff8a57);
-  color: #22140c;
+  background: linear-gradient(135deg, var(--board-color-accent), #ff8a57);
+  color: var(--board-color-button-text);
   cursor: pointer;
 }
 
@@ -135,23 +157,23 @@ li,
   gap: 12px;
   padding: 16px;
   border-radius: 24px;
-  background: rgba(17, 11, 6, 0.56);
+  background: var(--board-color-surface);
 }
 
 .board-cell {
   aspect-ratio: 1;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.02));
+  border: 1px solid var(--board-color-cell-border);
+  background: radial-gradient(circle at 30% 30%, var(--board-color-cell-gloss-top), var(--board-color-cell-gloss-bottom));
   cursor: pointer;
 }
 
 .board-cell.player-1 {
-  background: radial-gradient(circle at 30% 30%, #ffe59a, #e4aa34 70%);
+  background: radial-gradient(circle at 30% 30%, var(--board-color-token-one-highlight), var(--board-color-token-one) 70%);
 }
 
 .board-cell.player-2 {
-  background: radial-gradient(circle at 30% 30%, #8fd5ff, #336cff 70%);
+  background: radial-gradient(circle at 30% 30%, var(--board-color-token-two-highlight), var(--board-color-token-two) 70%);
 }
 
 .side-panel {
@@ -182,11 +204,11 @@ li,
 }
 
 .token-one {
-  background: #e4aa34;
+  background: var(--board-color-token-one);
 }
 
 .token-two {
-  background: #4d7dff;
+  background: var(--board-color-token-two);
 }
 
 @media (max-width: 960px) {

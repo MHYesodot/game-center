@@ -16,6 +16,12 @@ Production direction:
 
 Three.js is allowed here only as a preview/prototype technology.
 
+Current behavior preserved in this prototype:
+
+- animated mission-bay preview scene
+- responsive canvas resize behavior
+- telemetry and environment overlay cards
+
 See:
 
 - `docs/architecture/game-client-architecture.md`

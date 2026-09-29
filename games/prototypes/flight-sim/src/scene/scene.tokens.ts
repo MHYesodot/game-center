@@ -1,0 +1,51 @@
+export const sceneTokens = {
+  camera: {
+    fov: 52,
+    near: 0.1,
+    far: 100,
+    position: { x: 0, y: 2.2, z: 8 },
+  },
+  colors: {
+    ambient: 0xa9d8ff,
+    keyLight: 0xffcc88,
+    hull: 0xd4e7ff,
+    wing: 0x6bd6ff,
+    wingEmissive: 0x0c3d55,
+    canopy: 0x9de6ff,
+    stars: 0xffffff,
+    ring: 0x6bd6ff,
+  },
+  lighting: {
+    ambientIntensity: 1.2,
+    keyIntensity: 1.8,
+    keyPosition: { x: 4, y: 6, z: 3 },
+  },
+  ship: {
+    hullRadius: 0.7,
+    hullLength: 2.8,
+    wingWidth: 2.2,
+    wingHeight: 0.08,
+    wingDepth: 0.8,
+    canopyRadius: 0.45,
+    leftWingPosition: { x: 0, y: 0.25, z: -0.85 },
+    rightWingZ: 0.85,
+    canopyPosition: { x: 0.5, y: 0.38, z: 0 },
+  },
+  stars: {
+    count: 450,
+    spread: 40,
+    size: 0.04,
+  },
+  ring: {
+    radius: 3.8,
+    tube: 0.05,
+    radialSegments: 12,
+    tubularSegments: 80,
+    opacity: 0.55,
+  },
+  resize: {
+    minHeight: 420,
+    maxHeight: 720,
+    aspectRatio: 0.58,
+  },
+} as const

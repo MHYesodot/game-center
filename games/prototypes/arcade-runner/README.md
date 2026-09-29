@@ -12,6 +12,13 @@ Production direction:
 
 - Phaser, PixiJS, or Godot
 
+Current behavior preserved in this prototype:
+
+- local endless runner loop on canvas
+- left and right keyboard steering
+- live speed and score HUD
+- score reset on collision
+
 See:
 
 - `docs/architecture/game-client-architecture.md`

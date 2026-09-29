@@ -13,6 +13,13 @@ Production direction:
 - web or Godot client depending on title
 - authoritative Go server
 
+Current behavior preserved in this prototype:
+
+- local two-player column-drop board interaction
+- turn indicator and status messaging
+- winner detection for four-in-a-row
+- manual match reset
+
 See:
 
 - `docs/architecture/game-client-architecture.md`
