@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type {
   CreateLobbyRequest,
-  LobbyDetails,
   LobbyRuntimeState,
   SetLobbyReadyRequest,
 } from '@game-center/contracts'
@@ -11,7 +10,7 @@ import type { Clock } from '../../../boundaries/clock.js'
 import type { IdGenerator } from '../../../boundaries/id-generator.js'
 import { buildUnavailableRuntimeState, type LobbyRepository, type LobbyRepositoryTransaction, type LobbyRuntimeStore } from './lobby.ports.js'
 import { LobbyService } from './lobby.service.js'
-import type { DurableLobbyAggregate, DurableLobbyMemberRecord, DurableLobbyRecord } from '../domain/lobby-record.js'
+import type { DurableLobbyAggregate } from '../domain/lobby-record.js'
 
 describe('LobbyService', () => {
   it('creates a durable lobby owned by the caller', async () => {
@@ -71,6 +70,35 @@ describe('LobbyService', () => {
 
     expect(lobby.ownerPlayerId).toBe('player-2')
     expect(lobby.members.find((member) => member.playerId === 'player-1')?.leftAt).toBe(harness.now)
+  })
+
+  it('rejects repeated leave after durable membership is already inactive', async () => {
+    const harness = createHarness({
+      lobby: buildLobbyAggregate({
+        members: [
+          {
+            lobbyId: 'lobby-1',
+            playerId: 'player-1',
+            role: 'owner',
+            joinedAt: '2026-09-29T10:00:00.000Z',
+            leftAt: null,
+          },
+          {
+            lobbyId: 'lobby-1',
+            playerId: 'player-2',
+            role: 'member',
+            joinedAt: '2026-09-29T10:01:00.000Z',
+            leftAt: null,
+          },
+        ],
+      }),
+    })
+
+    await harness.service.leaveLobby('lobby-1', { playerId: 'player-2', requestId: 'request-1' })
+
+    await expect(
+      harness.service.leaveLobby('lobby-1', { playerId: 'player-2', requestId: 'request-2' }),
+    ).rejects.toMatchObject({ response: { code: 'NOT_LOBBY_MEMBER' } })
   })
 
   it('resets ready state when a new member joins', async () => {

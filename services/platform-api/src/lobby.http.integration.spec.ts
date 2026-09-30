@@ -229,6 +229,46 @@ describe('lobby http integration', () => {
     expect(startedLobby.members.filter((member) => member.leftAt === null)).toHaveLength(2)
   }, 15_000)
 
+  it('treats repeated leave as a semantic conflict after the member is already inactive', async () => {
+    const testApp = await createLobbyTestApplication()
+    cleanups.push(testApp.cleanup)
+
+    const createResponse = await fetch(`${testApp.baseUrl}/api/lobbies`, {
+      method: 'POST',
+      headers: jsonHeaders('player-1'),
+      body: JSON.stringify({
+        gameId: 'signal-grid',
+        visibility: 'public',
+        capacity: 4,
+        minimumPlayers: 2,
+        configuration: {
+          schemaVersion: 'v1',
+          settings: {},
+        },
+      }),
+    })
+    const created = (await createResponse.json()) as { lobbyId: string }
+
+    await fetch(`${testApp.baseUrl}/api/lobbies/${created.lobbyId}/join`, {
+      method: 'POST',
+      headers: jsonHeaders('player-2'),
+      body: JSON.stringify({}),
+    })
+
+    const firstLeave = await fetch(`${testApp.baseUrl}/api/lobbies/${created.lobbyId}/leave`, {
+      method: 'POST',
+      headers: jsonHeaders('player-2'),
+    })
+    const secondLeave = await fetch(`${testApp.baseUrl}/api/lobbies/${created.lobbyId}/leave`, {
+      method: 'POST',
+      headers: jsonHeaders('player-2'),
+    })
+
+    expect(firstLeave.status).toBe(200)
+    expect(secondLeave.status).toBe(409)
+    expect(await secondLeave.json()).toEqual({ code: 'NOT_LOBBY_MEMBER' })
+  }, 15_000)
+
   it('survives redis runtime flush without losing durable lobby state', async () => {
     const testApp = await createLobbyTestApplication()
     cleanups.push(testApp.cleanup)

@@ -18,7 +18,7 @@
 | `players` | Profiles and player metadata | `players.*` | Application interfaces and domain events | HTTP + integration events | Player boundary without separate process yet |
 | `catalog` | Game catalog and manifest discovery | `catalog.*` persisted in PostgreSQL through Drizzle repositories | Application interfaces and domain events | HTTP `GET /api/games`, `GET /api/games/:slug` + integration events | Platform-owned discovery boundary with a persisted read model |
 | `social` | Friends, parties, social graph metadata | `social.*` | Application interfaces and domain events | HTTP + integration events | Preserves extraction path |
-| `lobby` | Lobby metadata and readiness | `lobby.*` | Application interfaces and domain events | HTTP + integration events | No game rules allowed |
+| `lobby` | Durable lobby lifecycle, membership history, ownership, and ephemeral runtime readiness/presence | `lobby.*` durable tables in PostgreSQL plus versioned Redis runtime keys | Application interfaces plus durable repository and runtime-store ports | HTTP; no expanded integration events in Slice 3 | No game rules allowed; PostgreSQL is durable truth and Redis is runtime-only |
 | `matchmaking` | Queue orchestration | `matchmaking.*` | Application interfaces and domain events | HTTP + NATS | Uses Redis for ephemeral queues |
 | `sessions` | Session metadata and game server allocation orchestration | `sessions.*` | Application interfaces and domain events | HTTP + NATS | Owns allocator abstraction and session lifecycle |
 

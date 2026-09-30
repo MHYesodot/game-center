@@ -6,7 +6,6 @@ import type {
   JoinLobbyRequest,
   LobbyDetails,
   LobbyErrorCode,
-  LobbyRuntimeState,
   SetLobbyReadyRequest,
 } from '@game-center/contracts'
 
@@ -27,10 +26,8 @@ import {
   getActiveLobbyMembers,
   getActiveMember,
   getActiveMemberCount,
-  getAvailableSeats,
   getDeterministicOwnerSuccessor,
   isLobbyExpired,
-  isReadyCapableState,
   LOBBY_EXPIRY_WINDOW_MS,
   materializeLobbyStatus,
   MAX_LOBBY_CAPACITY,
@@ -446,7 +443,6 @@ export class LobbyService {
     options: { allowUnavailableRuntime: boolean },
   ): Promise<LobbyDetails> {
     const now = this.clock.now().toISOString()
-    const activeMembers = getActiveLobbyMembers(aggregate)
     const runtime = await this.getRuntimeProjection(aggregate, options.allowUnavailableRuntime)
 
     return {

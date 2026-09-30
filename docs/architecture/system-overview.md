@@ -45,7 +45,7 @@ Current Slice 1.1 module classification:
 | Players | Boundary placeholder | reserved boundary for player profile ownership, no active use cases yet |
 | Catalog | Active persisted domain | owns game definitions, manifest projections, version metadata, and capability discovery |
 | Social | Boundary placeholder | reserved boundary for parties, presence, and graph ownership |
-| Lobby | Active domain seed | owns room lifecycle, membership, readiness, and launch preparation |
+| Lobby | Active persisted domain | owns durable lobby lifecycle and membership in PostgreSQL plus ephemeral runtime readiness and presence in Redis |
 | Matchmaking | Active domain seed | now models queues, tickets, proposals, and match creation as in-memory seeds |
 | Sessions | Active domain seed | now models session lifecycle and game-server allocation orchestration as in-memory seeds |
 
@@ -108,6 +108,14 @@ Default language and runtime choices are fixed unless an ADR approves an excepti
 - The public read surface is `GET /api/games` and `GET /api/games/:slug`.
 - The platform web app no longer falls back to a local preview catalog at runtime when the live service is unavailable.
 - DEV and CI are expected to run `npm run db:migrate` and `npm run db:seed` before smoke or integration flows that depend on catalog data.
+
+## Current Lobby Runtime
+
+- Lobby durable state is now served from PostgreSQL through the `Lobby` module repository boundary.
+- Lobby runtime state uses Redis only for ephemeral presence, ready state, and reconnect metadata.
+- `GET /api/lobbies/:lobbyId` can return durable lobby state with an unavailable runtime projection when Redis is down.
+- Runtime-dependent actions such as ready and start degrade to semantic `503` responses with `LOBBY_UNAVAILABLE` during Redis outage.
+- Lobby reads Catalog only through the public catalog query boundary, not through catalog persistence internals.
 
 ## Target System Diagram
 
@@ -174,7 +182,7 @@ flowchart TD
     PLAYER <--> NATS
     CATALOG <--> NATS
     SOCIAL <--> NATS
-    LOBBY <--> NATS
+    LOBBY -. integration events only when needed .-> NATS
     MATCH <--> NATS
     SESSION <--> NATS
 
@@ -183,6 +191,7 @@ flowchart TD
     CATALOG --> PG
     SOCIAL --> PG
     LOBBY --> PG
+    LOBBY --> REDIS
     MATCH --> REDIS
     SESSION --> PG
     SESSION --> ALLOCATOR

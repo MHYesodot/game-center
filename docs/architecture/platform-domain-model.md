@@ -14,7 +14,7 @@ Status: Accepted source of truth for Foundation Slice 1.1 domain modeling
 | Matchmaking | Active domain seed | Queue membership, ticket lifecycle, proposals, and match creation. |
 | Sessions | Active domain seed | Session metadata, participant roster, connection handoff, result envelope, and game-server allocation orchestration. |
 
-The intent is explicit: Phase 1 keeps boundary shells only where the business capability is not yet active, while the gameplay-adjacent flow is modeled now as real domains even with in-memory repositories.
+The intent is explicit: Phase 1 keeps boundary shells only where the business capability is not yet active, while the gameplay-adjacent flow is modeled now as real domains. Catalog and Lobby are already persisted; Matchmaking and Sessions remain seed-only boundaries for later slices.
 
 ## Domain Separation Rules
 
@@ -66,26 +66,27 @@ The intent is explicit: Phase 1 keeps boundary shells only where the business ca
 
 ### Aggregates and Value Objects
 
-- `Lobby`: aggregate root for pre-session coordination.
-- `LobbyMember`: player or spectator membership entry.
-- `LobbySettings`: visibility, capacity, region, and custom launch settings.
-- `LobbyState`: `forming -> open -> ready-check -> allocated -> in-session -> closing -> closed`.
-- `LobbyVisibility`: `public | private | friends-only | invite-only`.
-- `LobbyRole`: `host | member | spectator`.
-- `ReadyState`: `pending | ready | not-ready`.
+- `DurableLobbyRecord`: durable lobby aggregate root persisted in PostgreSQL.
+- `DurableLobbyMemberRecord`: durable membership history row persisted in PostgreSQL.
+- `LobbyConfiguration`: versioned, bounded, opaque configuration stored durably as JSONB.
+- `LobbyRuntimeState`: Redis-backed runtime projection for presence and ready state.
+- `LobbyState`: `open | starting | started | closed | expired`.
+- `LobbyVisibility`: `public | private`.
+- `LobbyRole`: `owner | member`.
 
 ### Invariants
 
-- Every lobby has exactly one host at a time.
-- `members.length <= settings.maxPlayers` for player seats.
-- `state = ready-check` requires at least `settings.minPlayers` joined.
-- `state = allocated` requires either a direct session allocation or an accepted matchmaking outcome.
-- `sessionId` is absent until the lobby transitions into `allocated` or `in-session`.
+- Every non-terminal lobby has exactly one active owner at a time.
+- Active membership count must never exceed `capacity`.
+- Only active durable members may toggle ready state.
+- Start requires `minimumPlayers` active members and all active members ready.
+- Durable membership survives Redis loss and disconnect because runtime state is not the source of truth for membership.
 
 ### Persistent vs Ephemeral
 
-- Persistent later in PostgreSQL: lobby identity, ownership, settings, audit timeline.
-- Ephemeral in Redis later: short-lived ready checks, countdowns, invite tokens, transient seat locks.
+- Persistent in PostgreSQL: lobby identity, game binding, owner, status, visibility, capacity, minimum players, configuration, join-code hash, expiry timestamps, and membership history.
+- Ephemeral in Redis: presence, connection state, ready state, reconnect deadline, and heartbeat freshness.
+- Derived: active member count, available seats, all-members-ready, connected member count.
 
 ## Matchmaking Domain
 

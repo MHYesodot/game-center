@@ -14,6 +14,11 @@ type PresenceRecord = {
   reconnectDeadlineAt: string | null
 }
 
+type ErrorLike = {
+  code?: string
+  message?: string
+}
+
 const runtimeTtlSeconds = 15 * 60
 
 @Injectable()
@@ -59,8 +64,7 @@ export class RedisLobbyRuntimeStore implements LobbyRuntimeStore {
         members,
       }
     } catch (error) {
-      this.handleRuntimeError(error)
-      throw error
+      throw this.normalizeRuntimeError(error)
     }
   }
 
@@ -73,8 +77,7 @@ export class RedisLobbyRuntimeStore implements LobbyRuntimeStore {
       } satisfies PresenceRecord))
       await this.redis.expire(this.presenceKey(lobbyId), runtimeTtlSeconds)
     } catch (error) {
-      this.handleRuntimeError(error)
-      throw error
+      throw this.normalizeRuntimeError(error)
     }
   }
 
@@ -91,8 +94,7 @@ export class RedisLobbyRuntimeStore implements LobbyRuntimeStore {
       await this.redis.expire(this.presenceKey(lobbyId), runtimeTtlSeconds)
       await this.redis.expire(this.readyKey(lobbyId), runtimeTtlSeconds)
     } catch (error) {
-      this.handleRuntimeError(error)
-      throw error
+      throw this.normalizeRuntimeError(error)
     }
   }
 
@@ -108,8 +110,7 @@ export class RedisLobbyRuntimeStore implements LobbyRuntimeStore {
 
       await this.redis.expire(this.readyKey(lobbyId), runtimeTtlSeconds)
     } catch (error) {
-      this.handleRuntimeError(error)
-      throw error
+      throw this.normalizeRuntimeError(error)
     }
   }
 
@@ -120,8 +121,7 @@ export class RedisLobbyRuntimeStore implements LobbyRuntimeStore {
         this.redis.sRem(this.readyKey(lobbyId), playerId),
       ])
     } catch (error) {
-      this.handleRuntimeError(error)
-      throw error
+      throw this.normalizeRuntimeError(error)
     }
   }
 
@@ -129,8 +129,7 @@ export class RedisLobbyRuntimeStore implements LobbyRuntimeStore {
     try {
       await this.redis.del(this.readyKey(lobbyId))
     } catch (error) {
-      this.handleRuntimeError(error)
-      throw error
+      throw this.normalizeRuntimeError(error)
     }
   }
 
@@ -138,8 +137,7 @@ export class RedisLobbyRuntimeStore implements LobbyRuntimeStore {
     try {
       await this.redis.del([this.presenceKey(lobbyId), this.readyKey(lobbyId)])
     } catch (error) {
-      this.handleRuntimeError(error)
-      throw error
+      throw this.normalizeRuntimeError(error)
     }
   }
 
@@ -155,9 +153,22 @@ export class RedisLobbyRuntimeStore implements LobbyRuntimeStore {
     return `${this.namespace}:lobby:${lobbyId}:ready`
   }
 
-  private handleRuntimeError(error: unknown) {
-    if (isRedisDependencyError(error)) {
+  private normalizeRuntimeError(error: unknown) {
+    if (isRedisDependencyError(error) || !this.redis.isOpen || !this.redis.isReady) {
       logDependencyDown('redis', error, 'RedisLobbyRuntimeStore')
+
+      const candidate = error instanceof Error || (error && typeof error === 'object') ? (error as ErrorLike) : undefined
+
+      return Object.assign(new Error(candidate?.message ?? 'Redis unavailable'), {
+        code: candidate?.code ?? 'ECONNREFUSED',
+        cause: error,
+      })
     }
+
+    if (error instanceof Error) {
+      return error
+    }
+
+    return new Error('Unexpected lobby runtime error')
   }
 }

@@ -113,7 +113,16 @@ export const redisProvider = {
       return createRedisTestClient()
     }
 
-    const client = createClient({ url: configService.getOrThrow<string>('REDIS_URL') })
+    const client = createClient({
+      url: configService.getOrThrow<string>('REDIS_URL'),
+      disableOfflineQueue: true,
+      socket: {
+        reconnectStrategy: (retries) => Math.min(retries * 50, 500),
+      },
+    })
+    client.on('error', (error) => {
+      logDependencyDown('redis', error, 'RedisProvider')
+    })
     await client.connect()
     return client
   },
