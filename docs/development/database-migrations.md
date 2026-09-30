@@ -2,7 +2,9 @@
 
 ## Scope
 
-This policy currently covers the Platform API catalog persistence only. It does not authorize lobby, matchmaking, sessions, or other persistence domains.
+This policy currently covers committed Drizzle migrations for the active Platform API persistence domains: Catalog, Lobby, and Matchmaking.
+
+It does not yet authorize Session persistence or future domains that have not reached an approved persisted roadmap phase.
 
 ## Commands
 

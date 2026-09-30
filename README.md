@@ -8,6 +8,7 @@ The current codebase contains a platform web prototype, gameplay prototypes, and
 
 Start here:
 
+- `docs/roadmap/README.md`
 - `docs/architecture/system-overview.md`
 - `docs/architecture/game-client-architecture.md`
 - `docs/architecture/prototype-game-client-audit.md`
@@ -16,6 +17,10 @@ Start here:
 - `docs/architecture/technology-matrix.md`
 - `docs/development/docker-dev-architecture.md`
 - `docs/adr/`
+
+## Program Roadmap
+
+Program sequencing, phase status, release gates, and deferred work live in `docs/roadmap/README.md`.
 
 ## Current Prototype Components
 
