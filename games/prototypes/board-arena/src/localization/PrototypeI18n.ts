@@ -1,7 +1,10 @@
-type PrototypeLocale = 'en' | 'he'
-type TextDirection = 'ltr' | 'rtl'
-
-type TranslationValues = Record<string, string | number>
+import {
+  createGameLocalization,
+  getGameClientLocale,
+  type GameClientLocale,
+  type GameLocalizationDictionary,
+  type TranslationValues,
+} from '@game-center/game-client-core'
 
 type BoardTranslations = {
   documentTitle: string
@@ -30,7 +33,7 @@ type BoardTranslations = {
 
 type BoardStringTranslationKey = Exclude<keyof BoardTranslations, 'sideItems'>
 
-const translations: Record<PrototypeLocale, BoardTranslations> = {
+const translations: GameLocalizationDictionary = {
   en: {
     documentTitle: 'Signal Grid',
     heroEyebrow: 'Board game client',
@@ -59,7 +62,7 @@ const translations: Record<PrototypeLocale, BoardTranslations> = {
     'status.playerOneWon': 'Commander One sealed the grid with four in a row.',
     'status.playerTwoWon': 'Commander Two sealed the grid with four in a row.',
     'board.cellLabel': 'Column {column}, row {row}',
-  },
+  } as BoardTranslations,
   he: {
     documentTitle: 'רשת אות',
     heroEyebrow: 'לקוח משחק לוח',
@@ -88,41 +91,22 @@ const translations: Record<PrototypeLocale, BoardTranslations> = {
     'status.playerOneWon': 'מפקד אחת סגרה את הרשת עם ארבעה ברצף.',
     'status.playerTwoWon': 'מפקד שתיים סגרה את הרשת עם ארבעה ברצף.',
     'board.cellLabel': 'עמודה {column}, שורה {row}',
-  },
+  } as BoardTranslations,
 }
 
-const textDirection: Record<PrototypeLocale, TextDirection> = {
-  en: 'ltr',
-  he: 'rtl',
+export function getPrototypeLocale(search = window.location.search): GameClientLocale {
+  return getGameClientLocale(search)
 }
 
-function formatTemplate(template: string, values?: TranslationValues) {
-  if (!values) {
-    return template
-  }
-
-  return template.replace(/\{(\w+)\}/g, (_, key: string) => {
-    const value = values[key]
-    return value === undefined ? `{${key}}` : String(value)
-  })
-}
-
-export function getPrototypeLocale(): PrototypeLocale {
-  const locale = new URLSearchParams(window.location.search).get('locale')
-  return locale === 'he' ? 'he' : 'en'
-}
-
-export function getPrototypeTextDirection(locale: PrototypeLocale): TextDirection {
-  return textDirection[locale]
-}
-
-export function createBoardTranslator(locale: PrototypeLocale) {
-  const dictionary = translations[locale]
+export function createBoardTranslator(locale: GameClientLocale) {
+  const localization = createGameLocalization(locale, translations)
+  const dictionary = translations[locale] as BoardTranslations
 
   return {
     copy: dictionary,
     t(key: BoardStringTranslationKey, values?: TranslationValues) {
-      return formatTemplate(dictionary[key], values)
+      return localization.t(key, values)
     },
+    direction: localization.direction,
   }
 }

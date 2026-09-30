@@ -5,9 +5,15 @@
     "lib": ["ES2023", "DOM"],
     "types": ["vite/client"],
     "allowArbitraryExtensions": true,
+    "ignoreDeprecations": "6.0",
     "skipLibCheck": true,
 
     /* Bundler mode */
+    "baseUrl": ".",
+    "paths": {
+      "@game-center/game-client-core": ["../../../packages/game-client-core/src/index.ts"],
+      "@game-center/i18n": ["../../../packages/i18n/src/index.ts"]
+    },
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,

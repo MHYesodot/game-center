@@ -53,10 +53,12 @@ export function buildCatalogGame(overrides: Partial<GameDefinition> = {}): GameD
         ios: false,
         ipados: false,
       },
-      minimumVersion: '0.1.0',
-      downloadStrategy: 'browser',
-      launchStrategy: 'route',
-      architecture: 'browser',
+      distribution: {
+        minimumVersion: '0.1.0',
+        downloadStrategy: 'browser',
+        launchStrategy: 'route',
+        architecture: 'browser',
+      },
     },
   }
 
@@ -81,6 +83,10 @@ export function buildCatalogGame(overrides: Partial<GameDefinition> = {}): GameD
       platforms: {
         ...base.manifest.platforms,
         ...overrides.manifest?.platforms,
+      },
+      distribution: {
+        ...base.manifest.distribution,
+        ...overrides.manifest?.distribution,
       },
     },
   }

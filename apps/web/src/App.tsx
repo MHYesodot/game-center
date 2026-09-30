@@ -7,7 +7,7 @@ import './App.css'
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? '/api'
 
 type GameCategoryKey = 'board' | 'arcade' | 'simulation3d'
-type CatalogSource = 'localPreview' | 'liveService'
+type CatalogSource = 'liveService'
 type RemoteCatalogState = {
   locale: SupportedLocale
   games: Game[]
@@ -124,7 +124,6 @@ const gameLocalizationKeys: Record<GameSeed['gameId'], GameLocalizationKeySet> =
   },
 }
 const sourceLabelKeyBySource: Record<CatalogSource, string> = {
-  localPreview: 'catalog.source.localPreview',
   liveService: 'catalog.source.liveService',
 }
 
@@ -137,7 +136,7 @@ function App({ locale }: { locale: SupportedLocale }) {
 }
 
 function GameCenter({ locale }: { locale: SupportedLocale }) {
-  const { games, source } = useGameCatalog(locale)
+  const { games, source, errorKey } = useGameCatalog(locale)
   const direction = getTextDirection(locale)
 
   return (
@@ -165,6 +164,8 @@ function GameCenter({ locale }: { locale: SupportedLocale }) {
           })}
         </div>
       </header>
+
+      {errorKey ? <p className="eyebrow">{translate(locale, errorKey)}</p> : null}
 
       <Routes>
         <Route path="/" element={<HomePage games={games} locale={locale} />} />
@@ -415,20 +416,20 @@ function getCategoryKey(remoteGame: RemoteCatalogGame, fallbackSeed: GameSeed): 
 type RemoteCatalogGame = GameDefinition
 
 function mergeRemoteCatalogGameWithLocale(remoteGame: RemoteCatalogGame, locale: SupportedLocale): Game | null {
-  const fallbackSeed =
+  const presentationSeed =
     gameSeeds.find((game) => game.gameId === remoteGame.gameId) ??
     gameSeeds.find((game) => game.slug === remoteGame.slug)
 
-  if (!fallbackSeed) {
+  if (!presentationSeed) {
     return null
   }
 
-  const fallbackGame = localizeGame(fallbackSeed, locale)
-  const categoryKey = getCategoryKey(remoteGame, fallbackSeed)
-  const localizationKeys = getLocalizationKeys(fallbackSeed.gameId)
+  const localizedGame = localizeGame(presentationSeed, locale)
+  const categoryKey = getCategoryKey(remoteGame, presentationSeed)
+  const localizationKeys = getLocalizationKeys(presentationSeed.gameId)
 
   return {
-    ...fallbackGame,
+    ...localizedGame,
     slug: remoteGame.slug,
     categoryKey,
     categoryLabelKey: remoteGame.categoryKey ?? categoryLabelKeyByCategory[categoryKey],
@@ -439,8 +440,8 @@ function mergeRemoteCatalogGameWithLocale(remoteGame: RemoteCatalogGame, locale:
 }
 
 function useGameCatalog(locale: SupportedLocale) {
-  const fallbackGames = useMemo(() => gameSeeds.map((game) => localizeGame(game, locale)), [locale])
   const [remoteCatalog, setRemoteCatalog] = useState<RemoteCatalogState | null>(null)
+  const [loadError, setLoadError] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -452,39 +453,35 @@ function useGameCatalog(locale: SupportedLocale) {
         })
 
         if (!response.ok) {
+          setLoadError(true)
           return
         }
 
         const payload = (await response.json()) as CatalogListResponse | RemoteCatalogGame[]
         const remoteGames = Array.isArray(payload) ? payload : payload.games
 
-        if (remoteGames.length > 0) {
-          const mergedGames = remoteGames
-            .map((game) => mergeRemoteCatalogGameWithLocale(game, locale))
-            .filter((game): game is Game => game !== null)
+        const mergedGames = remoteGames
+          .map((game) => mergeRemoteCatalogGameWithLocale(game, locale))
+          .filter((game): game is Game => game !== null)
 
-          if (mergedGames.length > 0) {
-            setRemoteCatalog({ locale, games: mergedGames })
-          }
+        setRemoteCatalog({ locale, games: mergedGames })
+        setLoadError(false)
+      } catch {
+        if (!controller.signal.aborted) {
+          setLoadError(true)
         }
-      } catch {}
+      }
     }
 
     void loadGames()
 
     return () => controller.abort()
-  }, [fallbackGames, locale])
-
-  if (remoteCatalog?.locale === locale) {
-    return {
-      games: remoteCatalog.games,
-      source: 'liveService' as CatalogSource,
-    }
-  }
+  }, [locale])
 
   return {
-    games: fallbackGames,
-    source: 'localPreview' as CatalogSource,
+    games: remoteCatalog?.locale === locale ? remoteCatalog.games : [],
+    source: 'liveService' as CatalogSource,
+    errorKey: loadError ? 'catalog.source.liveCatalogError' : null,
   }
 }
 

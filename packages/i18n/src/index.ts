@@ -15,15 +15,15 @@ export type SupportedLocale = 'en' | 'he'
 
 export type TextDirection = 'ltr' | 'rtl'
 
-type TranslationLeaf = string | string[]
+export type TranslationLeaf = string | string[]
 
-type TranslationNode = {
+export type TranslationNode = {
   [key: string]: TranslationLeaf | TranslationNode
 }
 
-type TranslationBundle = Record<string, TranslationNode>
+export type TranslationBundle = Record<string, TranslationNode>
 
-type TranslationValues = Record<string, string | number>
+export type TranslationValues = Record<string, string | number>
 
 const translations: Record<SupportedLocale, TranslationBundle> = {
   en: {
@@ -49,7 +49,7 @@ const localeDirection: Record<SupportedLocale, TextDirection> = {
   he: 'rtl',
 }
 
-function resolvePath(node: TranslationNode | TranslationLeaf, path: string[]): TranslationLeaf | undefined {
+export function resolveTranslationPath(node: TranslationNode | TranslationLeaf, path: string[]): TranslationLeaf | undefined {
   if (typeof node === 'string' || Array.isArray(node)) {
     return path.length === 0 ? node : undefined
   }
@@ -70,10 +70,10 @@ function resolvePath(node: TranslationNode | TranslationLeaf, path: string[]): T
     return next
   }
 
-  return resolvePath(next, tail)
+  return resolveTranslationPath(next, tail)
 }
 
-function formatTemplate(template: string, values?: TranslationValues) {
+export function formatTranslationTemplate(template: string, values?: TranslationValues) {
   if (!values) {
     return template
   }
@@ -88,46 +88,65 @@ export function getTextDirection(locale: SupportedLocale): TextDirection {
   return localeDirection[locale]
 }
 
+export function createTranslator<Locale extends string>(
+  bundles: Record<Locale, TranslationBundle>,
+  localeDirections: Record<Locale, TextDirection>,
+) {
+  return {
+    getDirection(locale: Locale): TextDirection {
+      return localeDirections[locale]
+    },
+    translate(locale: Locale, key: string, values?: TranslationValues): string {
+      const [namespace, ...path] = key.split('.')
+      const namespaceNode = bundles[locale][namespace]
+
+      if (!namespaceNode) {
+        throw new Error(`Missing translation namespace: ${namespace}`)
+      }
+
+      const resolved = resolveTranslationPath(namespaceNode, path)
+
+      if (resolved === undefined) {
+        throw new Error(`Missing translation key: ${key}`)
+      }
+
+      if (Array.isArray(resolved)) {
+        throw new Error(`Translation key does not resolve to a string: ${key}`)
+      }
+
+      return formatTranslationTemplate(resolved, values)
+    },
+    translateList(locale: Locale, key: string): string[] {
+      const [namespace, ...path] = key.split('.')
+      const namespaceNode = bundles[locale][namespace]
+
+      if (!namespaceNode) {
+        throw new Error(`Missing translation namespace: ${namespace}`)
+      }
+
+      const resolved = resolveTranslationPath(namespaceNode, path)
+
+      if (resolved === undefined) {
+        throw new Error(`Missing translation key: ${key}`)
+      }
+
+      if (!Array.isArray(resolved)) {
+        throw new Error(`Translation key does not resolve to a list: ${key}`)
+      }
+
+      return resolved
+    },
+  }
+}
+
+const platformTranslator = createTranslator(translations, localeDirection)
+
 export function translate(locale: SupportedLocale, key: string, values?: TranslationValues): string {
-  const [namespace, ...path] = key.split('.')
-  const namespaceNode = translations[locale][namespace]
-
-  if (!namespaceNode) {
-    throw new Error(`Missing translation namespace: ${namespace}`)
-  }
-
-  const resolved = resolvePath(namespaceNode, path)
-
-  if (resolved === undefined) {
-    throw new Error(`Missing translation key: ${key}`)
-  }
-
-  if (Array.isArray(resolved)) {
-    throw new Error(`Translation key does not resolve to a string: ${key}`)
-  }
-
-  return formatTemplate(resolved, values)
+  return platformTranslator.translate(locale, key, values)
 }
 
 export function translateList(locale: SupportedLocale, key: string): string[] {
-  const [namespace, ...path] = key.split('.')
-  const namespaceNode = translations[locale][namespace]
-
-  if (!namespaceNode) {
-    throw new Error(`Missing translation namespace: ${namespace}`)
-  }
-
-  const resolved = resolvePath(namespaceNode, path)
-
-  if (resolved === undefined) {
-    throw new Error(`Missing translation key: ${key}`)
-  }
-
-  if (!Array.isArray(resolved)) {
-    throw new Error(`Translation key does not resolve to a list: ${key}`)
-  }
-
-  return resolved
+  return platformTranslator.translateList(locale, key)
 }
 
 export function formatNumber(locale: SupportedLocale, value: number) {
@@ -142,7 +161,7 @@ export function formatPlural(locale: SupportedLocale, count: number, forms: Reco
   const pluralRules = new Intl.PluralRules(locale)
   const rule = pluralRules.select(count)
   const template = forms[rule] ?? forms.other
-  return formatTemplate(template, { count })
+  return formatTranslationTemplate(template, { count })
 }
 
 export function getLocaleBundles() {

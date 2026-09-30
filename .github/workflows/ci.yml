@@ -9,6 +9,37 @@ on:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: gamecenter
+          POSTGRES_PASSWORD: gamecenter
+          POSTGRES_DB: gamecenter
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U gamecenter -d gamecenter"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+      nats:
+        image: nats:2.10-alpine
+        ports:
+          - 4222:4222
+    env:
+      POSTGRES_URL: postgresql://gamecenter:gamecenter@localhost:5432/gamecenter
+      REDIS_URL: redis://localhost:6379
+      NATS_URL: nats://localhost:4222
 
     steps:
       - name: Checkout
@@ -34,6 +65,15 @@ jobs:
 
       - name: Unit tests
         run: npm run test:unit
+
+      - name: Database migrations
+        run: npm run db:migrate
+
+      - name: Seed catalog
+        run: npm run db:seed
+
+      - name: Integration tests
+        run: npm run test:integration
 
       - name: Build
         run: npm run build

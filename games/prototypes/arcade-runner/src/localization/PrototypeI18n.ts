@@ -1,5 +1,9 @@
-type PrototypeLocale = 'en' | 'he'
-type TextDirection = 'ltr' | 'rtl'
+import {
+  createGameLocalization,
+  getGameClientLocale,
+  type GameClientLocale,
+  type GameLocalizationDictionary,
+} from '@game-center/game-client-core'
 
 type ArcadeTranslationDictionary = {
   documentTitle: string
@@ -12,7 +16,7 @@ type ArcadeTranslationDictionary = {
   infoItems: string[]
 }
 
-const translations: Record<PrototypeLocale, ArcadeTranslationDictionary> = {
+const translations: GameLocalizationDictionary = {
   en: {
     documentTitle: 'Rush Lane',
     eyebrow: 'Arcade client',
@@ -27,7 +31,7 @@ const translations: Record<PrototypeLocale, ArcadeTranslationDictionary> = {
       'Separate from the portal so the gameplay loop stays lean',
       'Ready for score submission to the Node service',
     ],
-  },
+  } as ArcadeTranslationDictionary,
   he: {
     documentTitle: 'נתיב הדחף',
     eyebrow: 'לקוח ארקייד',
@@ -42,23 +46,18 @@ const translations: Record<PrototypeLocale, ArcadeTranslationDictionary> = {
       'מופרד מהפורטל כדי שלולאת המשחק תישאר רזה',
       'מוכן להגשת ניקוד לשירות Node',
     ],
-  },
+  } as ArcadeTranslationDictionary,
 }
 
-const textDirection: Record<PrototypeLocale, TextDirection> = {
-  en: 'ltr',
-  he: 'rtl',
+export function getPrototypeLocale(search = window.location.search): GameClientLocale {
+  return getGameClientLocale(search)
 }
 
-export function getPrototypeLocale(): PrototypeLocale {
-  const locale = new URLSearchParams(window.location.search).get('locale')
-  return locale === 'he' ? 'he' : 'en'
-}
+export function getArcadeTranslations(locale: GameClientLocale) {
+  const localization = createGameLocalization(locale, translations)
 
-export function getPrototypeTextDirection(locale: PrototypeLocale): TextDirection {
-  return textDirection[locale]
-}
-
-export function getArcadeTranslations(locale: PrototypeLocale) {
-  return translations[locale]
+  return {
+    copy: translations[locale] as ArcadeTranslationDictionary,
+    localization,
+  }
 }

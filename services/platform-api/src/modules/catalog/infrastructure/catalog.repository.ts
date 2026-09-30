@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common'
+import type { GameDefinition } from '@game-center/contracts'
 
-import type { CatalogGame } from '../domain/catalog-game.js'
+import { toCatalogGame, type CatalogGame, type CatalogRepository } from '../domain/catalog-game.js'
 
-const games: CatalogGame[] = [
+const games: GameDefinition[] = [
   {
     gameId: 'signal-grid',
     slug: 'signal-grid',
@@ -45,10 +46,12 @@ const games: CatalogGame[] = [
         ios: false,
         ipados: false,
       },
-      minimumVersion: '0.1.0',
-      downloadStrategy: 'browser',
-      launchStrategy: 'route',
-      architecture: 'browser',
+      distribution: {
+        minimumVersion: '0.1.0',
+        downloadStrategy: 'browser',
+        launchStrategy: 'route',
+        architecture: 'browser',
+      },
     },
   },
   {
@@ -93,10 +96,12 @@ const games: CatalogGame[] = [
         ios: true,
         ipados: true,
       },
-      minimumVersion: '0.1.0',
-      downloadStrategy: 'browser',
-      launchStrategy: 'route',
-      architecture: 'browser',
+      distribution: {
+        minimumVersion: '0.1.0',
+        downloadStrategy: 'browser',
+        launchStrategy: 'route',
+        architecture: 'browser',
+      },
     },
   },
   {
@@ -141,17 +146,25 @@ const games: CatalogGame[] = [
         ios: false,
         ipados: false,
       },
-      minimumVersion: '0.1.0',
-      downloadStrategy: 'browser',
-      launchStrategy: 'route',
-      architecture: 'browser',
+      distribution: {
+        minimumVersion: '0.1.0',
+        downloadStrategy: 'browser',
+        launchStrategy: 'route',
+        architecture: 'browser',
+      },
     },
   },
 ]
 
 @Injectable()
-export class InMemoryCatalogRepository {
-  list(): CatalogGame[] {
-    return games
+export class InMemoryCatalogRepository implements CatalogRepository {
+  async listGames(): Promise<CatalogGame[]> {
+    return games.map((game) => toCatalogGame(game))
+  }
+
+  async getGameBySlug(slug: string): Promise<CatalogGame | null> {
+    const game = games.find((entry) => entry.slug === slug)
+
+    return game ? toCatalogGame(game) : null
   }
 }

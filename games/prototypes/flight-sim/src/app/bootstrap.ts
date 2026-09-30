@@ -1,7 +1,8 @@
+import { applyDocumentLocalization } from '@game-center/game-client-core'
 import { Timer } from 'three'
 
 import { ViewportInput } from '../input/ViewportInput'
-import { getFlightTranslations, getPrototypeLocale, getPrototypeTextDirection } from '../localization/PrototypeI18n'
+import { getFlightTranslations, getPrototypeLocale } from '../localization/PrototypeI18n'
 import { ThreeSceneRenderer } from '../rendering/ThreeSceneRenderer'
 import { createFlightScene } from '../scene/createScene'
 import { sceneTokens } from '../scene/scene.tokens'
@@ -17,10 +18,9 @@ export function bootstrap() {
   }
 
   const locale = getPrototypeLocale()
-  const copy = getFlightTranslations(locale)
+  const { copy, localization } = getFlightTranslations(locale)
 
-  document.documentElement.lang = locale
-  document.documentElement.dir = getPrototypeTextDirection(locale)
+  applyDocumentLocalization(document.documentElement, locale, localization.direction)
   document.title = copy.documentTitle
 
   const shell = createFlightShell(app, copy)

@@ -12,7 +12,7 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: 'npm --workspace @game-center/platform-api run build && node services/platform-api/dist/main.js',
+      command: 'npm run db:migrate && npm run db:seed && npm --workspace @game-center/platform-api run build && node services/platform-api/dist/main.js',
       port: 3200,
       reuseExistingServer: false,
       env: {

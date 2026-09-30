@@ -1,7 +1,8 @@
-import { formatNumber } from './formatters'
+import { applyDocumentLocalization, formatNumber } from '@game-center/game-client-core'
+
 import { ArcadeGame } from '../game/ArcadeGame'
 import { KeyboardInput } from '../input/KeyboardInput'
-import { getArcadeTranslations, getPrototypeLocale, getPrototypeTextDirection } from '../localization/PrototypeI18n'
+import { getArcadeTranslations, getPrototypeLocale } from '../localization/PrototypeI18n'
 import { CanvasRenderer } from '../rendering/CanvasRenderer'
 import { createArcadeShell } from '../ui/ArcadeShell'
 
@@ -13,9 +14,8 @@ export function bootstrap() {
   }
 
   const locale = getPrototypeLocale()
-  const copy = getArcadeTranslations(locale)
-  document.documentElement.lang = locale
-  document.documentElement.dir = getPrototypeTextDirection(locale)
+  const { copy, localization } = getArcadeTranslations(locale)
+  applyDocumentLocalization(document.documentElement, locale, localization.direction)
   document.title = copy.documentTitle
 
   const shell = createArcadeShell(app, copy)
@@ -43,7 +43,7 @@ export function bootstrap() {
     const state = game.getState()
     shell.hud.update({
       speed: `${state.speedMultiplier.toFixed(1)}x`,
-      score: formatNumber(locale, Math.floor(state.score)),
+      score: formatNumber(localization.locale, Math.floor(state.score)),
     })
     renderer.render(state)
 

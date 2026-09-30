@@ -25,6 +25,10 @@ function isTestEnvironment(configService: ConfigService) {
   return configService.get<string>('NODE_ENV') === 'test'
 }
 
+function shouldUseTestDouble(configService: ConfigService, envKey: string) {
+  return isTestEnvironment(configService) && !configService.get<string>(envKey)
+}
+
 function createPostgresTestClient(): PostgresReadinessClient {
   return {
     async query() {
@@ -83,7 +87,7 @@ export const postgresProvider = {
   provide: POSTGRES,
   inject: [ConfigService],
   useFactory: (configService: ConfigService) =>
-    isTestEnvironment(configService)
+    shouldUseTestDouble(configService, 'POSTGRES_URL')
       ? createPostgresTestClient()
       : new Pool({ connectionString: configService.getOrThrow<string>('POSTGRES_URL') }),
 }
@@ -92,7 +96,7 @@ export const redisProvider = {
   provide: REDIS,
   inject: [ConfigService],
   useFactory: async (configService: ConfigService) => {
-    if (isTestEnvironment(configService)) {
+    if (shouldUseTestDouble(configService, 'REDIS_URL')) {
       return createRedisTestClient()
     }
 
@@ -106,7 +110,7 @@ export const natsProvider = {
   provide: NATS,
   inject: [ConfigService],
   useFactory: async (configService: ConfigService) =>
-    isTestEnvironment(configService)
+    shouldUseTestDouble(configService, 'NATS_URL')
       ? createNatsTestClient()
       : connect({ servers: configService.getOrThrow<string>('NATS_URL') }),
 }

@@ -7,7 +7,7 @@
 | `apps/web` | Main platform UX, lobby UX, discovery, profiles, leaderboards | TypeScript | React + Vite + React Router + TanStack Query | Browser | Yes | None directly | HTTP/WebSocket via gateway | Best fit for product-facing web platform |
 | `apps/admin` | Administration and moderation tooling | TypeScript | React + Vite | Browser | Yes | None directly | HTTP via gateway | Consistent platform UI stack |
 | `apps/launcher` | Download, update, launch workflows | TypeScript initially | TBD | Desktop / Web hybrid | Yes | None directly | HTTP via gateway | Separate launcher concerns from web app |
-| `services/platform-api` | Platform HTTP API and domain orchestration inside one runtime | TypeScript | NestJS | Node.js | Yes | PostgreSQL + Redis | HTTP + internal module calls + NATS integration events | Phase 1 modular monolith avoids premature microservices while preserving extraction-ready boundaries |
+| `services/platform-api` | Platform HTTP API and domain orchestration inside one runtime | TypeScript | NestJS + Drizzle ORM | Node.js | Yes | PostgreSQL + Redis | HTTP + internal module calls + NATS integration events | Phase 1 modular monolith avoids premature microservices while preserving extraction-ready boundaries while keeping SQL ownership explicit |
 | `realtime-gateway` | High-volume connection routing, presence fanout | Go | Native / chosen Go stack | Go runtime | Yes | Redis optional | WebSocket / NATS | Connection-heavy layer separated from business services |
 
 ## Platform API Modules
@@ -16,7 +16,7 @@
 | --- | --- | --- | --- | --- | --- |
 | `auth` | Identity, JWT/OIDC, service auth | `auth.*` | Application interfaces and domain events | HTTP + integration events | Core platform identity boundary |
 | `players` | Profiles and player metadata | `players.*` | Application interfaces and domain events | HTTP + integration events | Player boundary without separate process yet |
-| `catalog` | Game catalog and manifest discovery | `catalog.*` | Application interfaces and domain events | HTTP + integration events | Platform-owned discovery boundary |
+| `catalog` | Game catalog and manifest discovery | `catalog.*` persisted in PostgreSQL through Drizzle repositories | Application interfaces and domain events | HTTP `GET /api/games`, `GET /api/games/:slug` + integration events | Platform-owned discovery boundary with a persisted read model |
 | `social` | Friends, parties, social graph metadata | `social.*` | Application interfaces and domain events | HTTP + integration events | Preserves extraction path |
 | `lobby` | Lobby metadata and readiness | `lobby.*` | Application interfaces and domain events | HTTP + integration events | No game rules allowed |
 | `matchmaking` | Queue orchestration | `matchmaking.*` | Application interfaces and domain events | HTTP + NATS | Uses Redis for ephemeral queues |
@@ -42,6 +42,7 @@
 | NATS JetStream | Async event backbone | NATS | Docker | Yes | Low-coupling event integration |
 | MinIO | Object storage in DEV | MinIO | Docker | Yes | S3-compatible local storage |
 | Traefik | DEV edge / reverse proxy | Traefik | Docker | Yes | Single entry point for local development |
+| Drizzle Kit | Migration generation for platform persistence | TypeScript tooling | Node.js | No | Single ORM and SQL migration toolchain for the platform API |
 | OpenTelemetry Collector | Telemetry aggregation | OTel Collector | Docker | Yes | Unified telemetry pipeline |
 | Prometheus | Metrics | Prometheus | Docker | Yes | Metrics storage |
 | Grafana | Dashboards | Grafana | Docker | Yes | Observability UI |

@@ -44,6 +44,18 @@ services:
       - platform_api_workspace_node_modules:/workspace/node_modules
       - platform_api_service_node_modules:/workspace/services/platform-api/node_modules
 
+  postgres:
+    ports:
+      - "5432:5432"
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  nats:
+    ports:
+      - "4222:4222"
+
   realtime-gateway:
     build:
       context: .

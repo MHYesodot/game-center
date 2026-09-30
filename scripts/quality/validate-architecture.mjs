@@ -21,6 +21,8 @@ const ignoredDirectories = new Set([
 ])
 const renderedAttributeNames = new Set(['aria-label', 'title', 'placeholder', 'alt'])
 const translationKeyPattern = /^(?:common|navigation|catalog|lobby|matchmaking|errors)\./
+const productionGameMainPattern = /\/games\/production\/[^/]+\/src\/main\.[cm]?[jt]s$/
+const productionGamePathPattern = /\/games\/production\//
 
 function normalizePath(filePath) {
   return filePath.replace(/\\/g, '/')
@@ -234,6 +236,39 @@ function scanForHardCodedUiText(filePath, sourceFile, violations) {
   visit(sourceFile)
 }
 
+function scanProductionGameArchitecture(filePath, sourceText, violations) {
+  const normalizedFilePath = normalizePath(filePath)
+
+  if (!productionGamePathPattern.test(normalizedFilePath)) {
+    return
+  }
+
+  const relativePath = toRelative(filePath)
+
+  if (/\/src\/(?:domain|rendering)\//.test(normalizedFilePath) && /fetch\s*\(\s*['"`][^'"`]*\/api\//.test(sourceText)) {
+    violations.push(`${relativePath} production game domain/rendering layers must not call platform HTTP APIs directly`)
+  }
+
+  if (/\.innerHTML\s*=\s*`[\s\S]{180,}`/m.test(sourceText)) {
+    violations.push(`${relativePath} production game clients must not construct large application UI with innerHTML`)
+  }
+
+  if (productionGameMainPattern.test(normalizedFilePath)) {
+    const lineCount = sourceText.split(/\r?\n/).length
+    const monolithicSignals = [
+      /requestAnimationFrame|setAnimationLoop/.test(sourceText),
+      /addEventListener\(\s*['"](?:click|keydown|keyup|resize|pointerdown|pointermove)/.test(sourceText),
+      /document\.createElement|querySelector|getContext\(\s*['"]2d['"]|new\s+\w*Renderer/.test(sourceText),
+      /function\s+(?:render|update|loop)|const\s+(?:render|update|loop)\s*=/.test(sourceText),
+      /\.innerHTML\s*=/.test(sourceText),
+    ].filter(Boolean).length
+
+    if (lineCount > 40 && monolithicSignals >= 4) {
+      violations.push(`${relativePath} production game main.ts must remain bootstrap-only, not a monolithic client entrypoint`)
+    }
+  }
+}
+
 function detectCycles(graph) {
   const visited = new Set()
   const visiting = new Set()
@@ -300,6 +335,7 @@ for (const filePath of files) {
   const normalizedFilePath = normalizePath(filePath)
 
   scanForHardCodedUiText(filePath, sourceFile, violations)
+  scanProductionGameArchitecture(filePath, sourceText, violations)
 
   for (const specifier of imports) {
     const resolvedImport = resolveImport(filePath, specifier, workspacePackages)
@@ -308,6 +344,14 @@ for (const filePath of files) {
       const position = sourceText.indexOf(specifier)
       const { line, column } = getLineAndColumn(sourceFile, position)
       violations.push(`${toRelative(filePath)}:${line}:${column} domain layer must not depend on NestJS`)
+    }
+
+    if (
+      owner.scope === 'games' &&
+      productionGamePathPattern.test(normalizedFilePath) &&
+      normalizePath(specifier).includes('platform-api/src/')
+    ) {
+      violations.push(`${toRelative(filePath)} production games must not import platform API internals: ${specifier}`)
     }
 
     if (!resolvedImport) {
@@ -334,6 +378,14 @@ for (const filePath of files) {
       violations.push(`${toRelative(filePath)} games must not import app internals: ${specifier}`)
     }
 
+    if (
+      owner.scope === 'games' &&
+      productionGamePathPattern.test(normalizedFilePath) &&
+      normalizedResolved.includes('/services/platform-api/src/')
+    ) {
+      violations.push(`${toRelative(filePath)} production games must not import platform API internals: ${specifier}`)
+    }
+
     if (normalizedFilePath.includes('/services/platform-api/src/modules/') && ownerModule && targetModule && ownerModule !== targetModule) {
       violations.push(`${toRelative(filePath)} platform modules must not import another module's internals: ${specifier}`)
     }
@@ -342,6 +394,14 @@ for (const filePath of files) {
       if (/\/(application|infrastructure|transport)\//.test(normalizedResolved)) {
         violations.push(`${toRelative(filePath)} domain layer must not import outer layers: ${specifier}`)
       }
+    }
+
+    if (
+      productionGamePathPattern.test(normalizedFilePath) &&
+      /\/src\/domain\//.test(normalizedFilePath) &&
+      /\/(?:app|ui|rendering)\//.test(normalizedResolved)
+    ) {
+      violations.push(`${toRelative(filePath)} production game domain layer must not import app, ui, or rendering layers: ${specifier}`)
     }
   }
 

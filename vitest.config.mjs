@@ -8,5 +8,6 @@ export default defineConfig({
       'services/platform-api/src/**/*.spec.ts',
       'games/prototypes/**/*.spec.ts',
     ],
+    exclude: ['services/platform-api/src/**/*.integration.spec.ts'],
   },
 })

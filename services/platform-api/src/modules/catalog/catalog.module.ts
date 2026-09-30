@@ -1,11 +1,31 @@
 import { Module } from '@nestjs/common'
+import { drizzle } from 'drizzle-orm/node-postgres'
+import type { Pool } from 'pg'
 
 import { CatalogService } from './application/catalog.service.js'
 import { CatalogController } from './transport/catalog.controller.js'
-import { InMemoryCatalogRepository } from './infrastructure/catalog.repository.js'
+import { CATALOG_REPOSITORY } from './domain/catalog-game.js'
+import { DATABASE_POOL } from '../../infrastructure/infrastructure.tokens.js'
+import {
+  CATALOG_DRIZZLE_DB,
+} from './infrastructure/persistence/catalog.persistence.js'
+import { PostgresCatalogRepository } from './infrastructure/persistence/repositories/postgres-catalog.repository.js'
+import * as catalogSchema from './infrastructure/persistence/schema/catalog.schema.js'
 
 @Module({
   controllers: [CatalogController],
-  providers: [CatalogService, InMemoryCatalogRepository],
+  providers: [
+    CatalogService,
+    PostgresCatalogRepository,
+    {
+      provide: CATALOG_DRIZZLE_DB,
+      inject: [DATABASE_POOL],
+      useFactory: (pool: Pool) => drizzle(pool, { schema: catalogSchema }),
+    },
+    {
+      provide: CATALOG_REPOSITORY,
+      useExisting: PostgresCatalogRepository,
+    },
+  ],
 })
 export class CatalogModule {}

@@ -34,6 +34,28 @@ describe('quality validators', () => {
     expect(result.stderr).toContain('cross-app imports are forbidden')
   })
 
+  it('rejects production game monolithic main entries', () => {
+    const result = runValidator('validate-architecture.mjs', 'architecture-invalid-production-main')
+
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('production game main.ts must remain bootstrap-only')
+  })
+
+  it('rejects large production game innerHTML construction', () => {
+    const result = runValidator('validate-architecture.mjs', 'architecture-invalid-production-innerhtml')
+
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('production game clients must not construct large application UI with innerHTML')
+  })
+
+  it('rejects production game platform boundary violations', () => {
+    const result = runValidator('validate-architecture.mjs', 'architecture-invalid-production-boundaries')
+
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('production games must not import platform API internals')
+    expect(result.stderr).toContain('production game domain/rendering layers must not call platform HTTP APIs directly')
+  })
+
   it('rejects raw design literals outside approved token files', () => {
     const result = runValidator('validate-design.mjs', 'design-invalid')
 

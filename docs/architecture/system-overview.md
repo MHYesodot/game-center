@@ -43,7 +43,7 @@ Current Slice 1.1 module classification:
 | --- | --- | --- |
 | Auth | Boundary placeholder | reserved boundary for identity and authentication, no game-center-specific domain behavior yet |
 | Players | Boundary placeholder | reserved boundary for player profile ownership, no active use cases yet |
-| Catalog | Active domain seed | owns game definitions, manifests, version metadata, and capability discovery |
+| Catalog | Active persisted domain | owns game definitions, manifest projections, version metadata, and capability discovery |
 | Social | Boundary placeholder | reserved boundary for parties, presence, and graph ownership |
 | Lobby | Active domain seed | owns room lifecycle, membership, readiness, and launch preparation |
 | Matchmaking | Active domain seed | now models queues, tickets, proposals, and match creation as in-memory seeds |
@@ -97,10 +97,17 @@ Default language and runtime choices are fixed unless an ADR approves an excepti
 | Web arcade clients | Phaser, PixiJS, or Godot unless a different engine is justified by ADR |
 | High-end 3D / simulation | Unreal Engine 5 + C++ / Blueprints |
 | Browser 3D preview | Three.js only for preview / visualization / prototype use |
-| Database | PostgreSQL |
+| Database | PostgreSQL + Drizzle ORM in platform-api |
 | Cache / ephemeral state | Redis |
 | Messaging | NATS JetStream |
 | Object storage | MinIO in DEV, S3-compatible in production |
+
+## Current Catalog Runtime
+
+- Catalog reads are now served from PostgreSQL through the `Catalog` module repository boundary.
+- The public read surface is `GET /api/games` and `GET /api/games/:slug`.
+- The platform web app no longer falls back to a local preview catalog at runtime when the live service is unavailable.
+- DEV and CI are expected to run `npm run db:migrate` and `npm run db:seed` before smoke or integration flows that depend on catalog data.
 
 ## Target System Diagram
 

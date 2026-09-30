@@ -1,5 +1,7 @@
+import { applyDocumentLocalization } from '@game-center/game-client-core'
+
 import { BoardGame } from '../game/BoardGame'
-import { createBoardTranslator, getPrototypeLocale, getPrototypeTextDirection } from '../localization/PrototypeI18n'
+import { createBoardTranslator, getPrototypeLocale } from '../localization/PrototypeI18n'
 import { createBoardShell } from '../ui/BoardShell'
 import { BoardRenderer } from '../ui/BoardRenderer'
 
@@ -14,8 +16,7 @@ export function bootstrap() {
   const translator = createBoardTranslator(locale)
   const { copy, t } = translator
 
-  document.documentElement.lang = locale
-  document.documentElement.dir = getPrototypeTextDirection(locale)
+  applyDocumentLocalization(document.documentElement, locale, translator.direction)
   document.title = copy.documentTitle
 
   const shell = createBoardShell(app, {

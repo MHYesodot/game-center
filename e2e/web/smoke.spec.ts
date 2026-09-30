@@ -19,6 +19,7 @@ test('main lobby renders in hebrew with rtl direction', async ({ page }) => {
 
 test('featured game navigation opens a lobby and returns to catalog', async ({ page }) => {
   await page.goto('/?locale=en')
+  await expect(page.getByTestId('featured-game-signal-grid')).toBeVisible()
   await page.getByTestId('featured-game-signal-grid').click()
 
   await expect(page).toHaveURL(/\/game\/signal-grid$/)
@@ -42,4 +43,18 @@ test('main lobby passes the accessibility smoke audit', async ({ page }) => {
   const results = await new AxeBuilder({ page }).analyze()
 
   expect(results.violations).toEqual([])
+})
+
+test('catalog is served from the persisted live service', async ({ request }) => {
+  const response = await request.get('http://127.0.0.1:3200/api/games')
+  const detailResponse = await request.get('http://127.0.0.1:3200/api/games/signal-grid')
+
+  expect(response.ok()).toBe(true)
+  expect(detailResponse.ok()).toBe(true)
+
+  const payload = (await response.json()) as { games: Array<{ slug: string }> }
+  const detailPayload = (await detailResponse.json()) as { slug: string }
+
+  expect(payload.games.map((game) => game.slug)).toEqual(['aether-flight', 'rush-lane', 'signal-grid'])
+  expect(detailPayload.slug).toBe('signal-grid')
 })

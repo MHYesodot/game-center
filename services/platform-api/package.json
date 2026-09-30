@@ -7,8 +7,12 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/main.js",
     "start:test": "tsx src/main.ts",
+    "db:generate": "drizzle-kit generate --config drizzle.config.ts",
+    "db:migrate": "tsx src/modules/catalog/infrastructure/persistence/scripts/migrate.ts",
+    "db:seed": "tsx src/modules/catalog/infrastructure/persistence/scripts/seed.ts",
     "lint": "oxlint src",
-    "test": "vitest run \"src/**/*.spec.ts\""
+    "test": "vitest run \"src/**/*.spec.ts\"",
+    "test:integration": "vitest run --config vitest.integration.config.mjs"
   },
   "dependencies": {
     "@game-center/contracts": "*",
@@ -28,6 +32,7 @@
     "@types/express": "^5.0.3",
     "@types/node": "^24.13.3",
     "@types/pg": "^8.15.5",
+    "drizzle-kit": "^0.31.11",
     "nodemon": "^3.1.14",
     "oxlint": "^1.81.0",
     "tsx": "^4.20.5",

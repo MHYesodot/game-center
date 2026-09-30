@@ -1,5 +1,9 @@
-type PrototypeLocale = 'en' | 'he'
-type TextDirection = 'ltr' | 'rtl'
+import {
+  createGameLocalization,
+  getGameClientLocale,
+  type GameClientLocale,
+  type GameLocalizationDictionary,
+} from '@game-center/game-client-core'
 
 type FlightTranslations = {
   documentTitle: string
@@ -16,7 +20,7 @@ type FlightTranslations = {
   environmentValue: string
 }
 
-const translations: Record<PrototypeLocale, FlightTranslations> = {
+const translations: GameLocalizationDictionary = {
   en: {
     documentTitle: 'Aether Flight',
     eyebrow: '3D simulation prototype',
@@ -31,7 +35,7 @@ const translations: Record<PrototypeLocale, FlightTranslations> = {
     telemetryValue: 'Stable vector lock',
     environmentLabel: 'Environment',
     environmentValue: 'Upper atmosphere',
-  },
+  } as FlightTranslations,
   he: {
     documentTitle: 'טיסת איתר',
     eyebrow: 'אב טיפוס סימולציה תלת-ממדית',
@@ -46,23 +50,18 @@ const translations: Record<PrototypeLocale, FlightTranslations> = {
     telemetryValue: 'נעילת וקטור יציבה',
     environmentLabel: 'סביבה',
     environmentValue: 'אטמוספירה עליונה',
-  },
+  } as FlightTranslations,
 }
 
-const textDirection: Record<PrototypeLocale, TextDirection> = {
-  en: 'ltr',
-  he: 'rtl',
+export function getPrototypeLocale(search = window.location.search): GameClientLocale {
+  return getGameClientLocale(search)
 }
 
-export function getPrototypeLocale(): PrototypeLocale {
-  const locale = new URLSearchParams(window.location.search).get('locale')
-  return locale === 'he' ? 'he' : 'en'
-}
+export function getFlightTranslations(locale: GameClientLocale) {
+  const localization = createGameLocalization(locale, translations)
 
-export function getPrototypeTextDirection(locale: PrototypeLocale): TextDirection {
-  return textDirection[locale]
-}
-
-export function getFlightTranslations(locale: PrototypeLocale) {
-  return translations[locale]
+  return {
+    copy: translations[locale] as FlightTranslations,
+    localization,
+  }
 }

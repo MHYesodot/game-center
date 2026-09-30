@@ -31,10 +31,19 @@ The intent is explicit: Phase 1 keeps boundary shells only where the business ca
 ### Aggregates and Value Objects
 
 - `GameDefinition`: product-facing catalog identity and lifecycle status.
-- `GameManifest`: integration-facing description of a playable title.
+- `GameManifest`: integration-facing read projection assembled for clients from persisted catalog records.
 - `GameVersion`: compatibility tuple for game, protocol, and build versions.
 - `GameCapabilities`: declared support for multiplayer, ranking, spectators, replays, and private rooms.
+- `GamePlatformAvailability`: advertised platform matrix for the active catalog version.
+- `GameDistributionMetadata`: minimum supported platform version plus launch and distribution strategy metadata.
 - `GameRuntime`: client runtime, engine family, and server topology.
+
+### Read Model Shape
+
+- `GameDefinition` owns canonical identity, lifecycle state, category, and semantic localization keys.
+- `GameVersion` owns the active compatibility tuple and runtime description.
+- `GameCapabilities`, `GamePlatformAvailability`, and `GameDistributionMetadata` hang off the active catalog version.
+- `GameManifest` remains the wire-level shape returned to platform clients, but it is a projection rather than the persistence root.
 
 ### Invariants
 
@@ -43,10 +52,14 @@ The intent is explicit: Phase 1 keeps boundary shells only where the business ca
 - `GameManifest.version` must be present before a title becomes `active`.
 - catalog metadata must carry platform availability and future distribution strategy fields.
 - `GameCapabilities.multiplayer = true` implies server allocation and session flows are defined, even if the allocator implementation is stubbed in DEV.
+- exactly one active catalog version may exist per `gameId` at a time.
+- semantic localization keys are persisted as keys only; translated strings remain in the shared i18n bundles.
 
 ### Persistence Classification
 
-- Persistent later in PostgreSQL: `GameDefinition`, `GameManifest`, compatibility metadata.
+- Persistent in PostgreSQL: `GameDefinition`, active and historical `GameVersion` rows, version-scoped capabilities, platform availability, and distribution metadata.
+- Implementation shape: normalized relational tables joined into the manifest read model through the catalog repository.
+- Seed strategy: deterministic idempotent seed data is allowed for DEV, integration tests, and smoke validation so long as the live API still reads from PostgreSQL.
 - Ephemeral: none required for baseline catalog reads.
 
 ## Lobby Domain

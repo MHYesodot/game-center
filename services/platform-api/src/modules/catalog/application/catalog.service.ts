@@ -1,24 +1,31 @@
-import { Injectable } from '@nestjs/common'
-import type { CatalogListResponse, GameDefinition } from '@game-center/contracts'
+import { Inject, Injectable, NotFoundException } from '@nestjs/common'
+import type { CatalogGameResponse, CatalogListResponse } from '@game-center/contracts'
 
-import { InMemoryCatalogRepository } from '../infrastructure/catalog.repository.js'
+import {
+  CATALOG_REPOSITORY,
+  type CatalogRepository,
+  toCatalogGameResponse,
+} from '../domain/catalog-game.js'
 
 @Injectable()
 export class CatalogService {
-  constructor(private readonly catalogRepository: InMemoryCatalogRepository) {}
+  constructor(@Inject(CATALOG_REPOSITORY) private readonly catalogRepository: CatalogRepository) {}
 
-  listGames(): CatalogListResponse {
+  async listGames(): Promise<CatalogListResponse> {
+    const games = await this.catalogRepository.listGames()
+
     return {
-      games: this.catalogRepository.list().map((game) => this.toResponse(game)),
+      games: games.map((game) => toCatalogGameResponse(game)),
     }
   }
 
-  private toResponse(game: GameDefinition): GameDefinition {
-    return {
-      ...game,
-      manifest: {
-        ...game.manifest,
-      },
+  async getGameBySlug(slug: string): Promise<CatalogGameResponse> {
+    const game = await this.catalogRepository.getGameBySlug(slug)
+
+    if (!game) {
+      throw new NotFoundException(`Catalog game not found for slug ${slug}`)
     }
+
+    return toCatalogGameResponse(game)
   }
 }

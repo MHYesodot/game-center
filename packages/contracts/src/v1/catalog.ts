@@ -34,6 +34,22 @@ export type GameVersion = {
   buildVersion: string
 }
 
+export type GamePlatformAvailability = {
+  web: boolean
+  windows: boolean
+  macos: boolean
+  android: boolean
+  ios: boolean
+  ipados: boolean
+}
+
+export type GameDistributionMetadata = {
+  minimumVersion?: string
+  downloadStrategy?: 'browser' | 'managed-install' | 'store-deep-link' | 'bundled'
+  launchStrategy?: 'route' | 'native-process' | 'deep-link' | 'embedded-web-runtime'
+  architecture?: 'browser' | 'native-desktop' | 'native-mobile' | 'dedicated-server'
+}
+
 export type GameManifest = {
   gameId: string
   slug: string
@@ -45,18 +61,8 @@ export type GameManifest = {
   runtime: GameRuntime
   version: GameVersion
   capabilities: GameCapabilities
-  platforms: {
-    web: boolean
-    windows: boolean
-    macos: boolean
-    android: boolean
-    ios: boolean
-    ipados: boolean
-  }
-  minimumVersion?: string
-  downloadStrategy?: 'browser' | 'managed-install' | 'store-deep-link' | 'bundled'
-  launchStrategy?: 'route' | 'native-process' | 'deep-link' | 'embedded-web-runtime'
-  architecture?: 'browser' | 'native-desktop' | 'native-mobile' | 'dedicated-server'
+  platforms: GamePlatformAvailability
+  distribution: GameDistributionMetadata
 }
 
 export type GameDefinition = {
@@ -75,6 +81,8 @@ export type CatalogListResponse = {
   games: GameDefinition[]
 }
 
+export type CatalogGameResponse = GameDefinition
+
 export type CatalogGameManifest = {
   gameId: string
   slug: string
@@ -90,4 +98,6 @@ export type CatalogGameManifest = {
   protocolVersion: string
   buildVersion: string
   supports: GameCapabilities
+  platforms: GamePlatformAvailability
+  distribution: GameDistributionMetadata
 }
