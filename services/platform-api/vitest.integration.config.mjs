@@ -4,5 +4,6 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.integration.spec.ts'],
+    fileParallelism: false,
   },
 })

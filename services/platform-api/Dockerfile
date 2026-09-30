@@ -29,6 +29,7 @@ WORKDIR /app
 
 COPY --from=build /workspace/services/platform-api/package.json ./package.json
 COPY --from=build /workspace/services/platform-api/dist ./dist
+COPY --from=build /workspace/services/platform-api/drizzle ./drizzle
 COPY --from=build /workspace/node_modules ./node_modules
 
 EXPOSE 3000

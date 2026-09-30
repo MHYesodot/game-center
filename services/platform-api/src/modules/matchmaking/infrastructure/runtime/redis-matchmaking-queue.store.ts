@@ -8,6 +8,7 @@ import type { MatchmakingQueueStore } from '../../application/matchmaking.ports.
 import type { DurableMatchmakingRequest } from '../../domain/queue-ticket.js'
 
 const runtimeTtlSeconds = 15 * 60
+const redisOperationTimeoutMs = 1_000
 
 type ErrorLike = {
   code?: string
@@ -27,8 +28,10 @@ export class RedisMatchmakingQueueStore implements MatchmakingQueueStore {
 
   async enqueue(request: DurableMatchmakingRequest): Promise<void> {
     try {
-      await this.redis.zAdd(this.queueKey(request.queueKey), [{ score: new Date(request.requestedAt).getTime(), value: request.requestId }])
-      await this.redis.expire(this.queueKey(request.queueKey), runtimeTtlSeconds)
+      await this.executeCommand((client) =>
+        client.zAdd(this.queueKey(request.queueKey), [{ score: new Date(request.requestedAt).getTime(), value: request.requestId }]),
+      )
+      await this.executeCommand((client) => client.expire(this.queueKey(request.queueKey), runtimeTtlSeconds))
     } catch (error) {
       throw this.normalizeRuntimeError(error)
     }
@@ -36,7 +39,7 @@ export class RedisMatchmakingQueueStore implements MatchmakingQueueStore {
 
   async remove(queueKey: string, requestId: string): Promise<void> {
     try {
-      await this.redis.zRem(this.queueKey(queueKey), requestId)
+      await this.executeCommand((client) => client.zRem(this.queueKey(queueKey), requestId))
     } catch (error) {
       throw this.normalizeRuntimeError(error)
     }
@@ -48,7 +51,7 @@ export class RedisMatchmakingQueueStore implements MatchmakingQueueStore {
         return
       }
 
-      await this.redis.zRem(this.queueKey(queueKey), requestIds)
+      await this.executeCommand((client) => client.zRem(this.queueKey(queueKey), requestIds))
     } catch (error) {
       throw this.normalizeRuntimeError(error)
     }
@@ -56,7 +59,7 @@ export class RedisMatchmakingQueueStore implements MatchmakingQueueStore {
 
   async getCandidateRequestIds(queueKey: string, limit: number): Promise<string[]> {
     try {
-      return await this.redis.zRange(this.queueKey(queueKey), 0, Math.max(limit - 1, 0))
+      return await this.executeCommand((client) => client.zRange(this.queueKey(queueKey), 0, Math.max(limit - 1, 0)))
     } catch (error) {
       throw this.normalizeRuntimeError(error)
     }
@@ -65,8 +68,8 @@ export class RedisMatchmakingQueueStore implements MatchmakingQueueStore {
   async getRuntimeState(queueKey: string, requestId: string) {
     try {
       const [rank, count] = await Promise.all([
-        this.redis.zRank(this.queueKey(queueKey), requestId),
-        this.redis.zCard(this.queueKey(queueKey)),
+        this.executeCommand((client) => client.zRank(this.queueKey(queueKey), requestId)),
+        this.executeCommand((client) => client.zCard(this.queueKey(queueKey))),
       ])
 
       return {
@@ -84,7 +87,7 @@ export class RedisMatchmakingQueueStore implements MatchmakingQueueStore {
 
   async acquireQueueLock(queueKey: string, ownerToken: string, ttlSeconds: number): Promise<boolean> {
     try {
-      const result = await this.redis.set(this.lockKey(queueKey), ownerToken, { NX: true, EX: ttlSeconds })
+      const result = await this.executeCommand((client) => client.set(this.lockKey(queueKey), ownerToken, { NX: true, EX: ttlSeconds }))
       return result === 'OK'
     } catch (error) {
       throw this.normalizeRuntimeError(error)
@@ -93,10 +96,10 @@ export class RedisMatchmakingQueueStore implements MatchmakingQueueStore {
 
   async releaseQueueLock(queueKey: string, ownerToken: string): Promise<void> {
     try {
-      const currentOwner = await this.redis.get(this.lockKey(queueKey))
+      const currentOwner = await this.executeCommand((client) => client.get(this.lockKey(queueKey)))
 
       if (currentOwner === ownerToken) {
-        await this.redis.del(this.lockKey(queueKey))
+        await this.executeCommand((client) => client.del(this.lockKey(queueKey)))
       }
     } catch (error) {
       throw this.normalizeRuntimeError(error)
@@ -106,7 +109,7 @@ export class RedisMatchmakingQueueStore implements MatchmakingQueueStore {
   async touchProposalLease(proposalId: string, expiresAt: string): Promise<void> {
     try {
       const ttlSeconds = Math.max(Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 1000), 1)
-      await this.redis.set(this.proposalKey(proposalId), expiresAt, { EX: ttlSeconds })
+      await this.executeCommand((client) => client.set(this.proposalKey(proposalId), expiresAt, { EX: ttlSeconds }))
     } catch (error) {
       throw this.normalizeRuntimeError(error)
     }
@@ -114,9 +117,80 @@ export class RedisMatchmakingQueueStore implements MatchmakingQueueStore {
 
   async clearProposalLease(proposalId: string): Promise<void> {
     try {
-      await this.redis.del(this.proposalKey(proposalId))
+      await this.executeCommand((client) => client.del(this.proposalKey(proposalId)))
     } catch (error) {
       throw this.normalizeRuntimeError(error)
+    }
+  }
+
+  private async executeCommand<T>(operation: (client: RedisClientType) => Promise<T>): Promise<T> {
+    if (!this.redis.isOpen || !this.redis.isReady) {
+      throw this.createUnavailableError()
+    }
+
+    const command = operation(this.redis)
+    const pendingUnavailable = this.awaitUnavailableRuntime(command)
+
+    try {
+      return await Promise.race([command, pendingUnavailable.promise])
+    } catch (error) {
+      throw error
+    } finally {
+      pendingUnavailable.dispose()
+    }
+  }
+
+  private awaitUnavailableRuntime(command: Promise<unknown>) {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    let settled = false
+    let cleanup = () => {}
+
+    const promise = new Promise<never>((_, reject) => {
+      const rejectUnavailable = (cause?: unknown) => {
+        if (settled) {
+          return
+        }
+
+        settled = true
+        cleanup()
+        reject(this.createUnavailableError(cause))
+      }
+
+      const onError = (error: unknown) => rejectUnavailable(error)
+      const onReconnecting = () => rejectUnavailable()
+      const onEnd = () => rejectUnavailable()
+
+      cleanup = () => {
+        this.redis.off('error', onError)
+        this.redis.off('reconnecting', onReconnecting)
+        this.redis.off('end', onEnd)
+
+        if (timeoutId) {
+          clearTimeout(timeoutId)
+          timeoutId = undefined
+        }
+      }
+
+      this.redis.on('error', onError)
+      this.redis.on('reconnecting', onReconnecting)
+      this.redis.on('end', onEnd)
+      timeoutId = setTimeout(() => rejectUnavailable(), redisOperationTimeoutMs)
+      void command.finally(() => {
+        if (settled) {
+          return
+        }
+
+        settled = true
+        cleanup()
+      })
+    })
+
+    return {
+      promise,
+      dispose: () => {
+        cleanup()
+        settled = true
+      },
     }
   }
 
@@ -130,6 +204,13 @@ export class RedisMatchmakingQueueStore implements MatchmakingQueueStore {
 
   private lockKey(queueKey: string) {
     return `${this.namespace}:lock:queue:${queueKey}`
+  }
+
+  private createUnavailableError(cause?: unknown) {
+    return Object.assign(new Error('Redis unavailable'), {
+      code: 'ETIMEDOUT',
+      cause,
+    })
   }
 
   private normalizeRuntimeError(error: unknown) {

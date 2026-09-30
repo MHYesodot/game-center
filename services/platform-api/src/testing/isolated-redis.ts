@@ -5,6 +5,7 @@ import { createClient } from 'redis'
 export async function createIsolatedRedisNamespace(redisUrl: string, prefix = 'gc:test') {
   const namespace = `${prefix}:${randomUUID().replace(/-/g, '')}`
   const client = createClient({ url: redisUrl })
+  client.on('error', () => {})
   await client.connect()
 
   return {

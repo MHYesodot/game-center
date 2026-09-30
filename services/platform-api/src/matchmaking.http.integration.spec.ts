@@ -1,10 +1,14 @@
 import 'reflect-metadata'
 
+import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import { fileURLToPath } from 'node:url'
+import { promisify } from 'node:util'
 
 import { Module } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
 import { ConfigModule } from '@nestjs/config'
+import { createClient } from 'redis'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { validateEnv } from './infrastructure/config/env.schema.js'
@@ -20,6 +24,8 @@ import { createIsolatedRedisNamespace } from './testing/isolated-redis.js'
 
 const baseConnectionString = process.env.POSTGRES_URL
 const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379'
+const repoRoot = fileURLToPath(new URL('../../..', import.meta.url))
+const execFileAsync = promisify(execFile)
 
 if (!baseConnectionString) {
   throw new Error('POSTGRES_URL is required for matchmaking integration tests.')
@@ -270,6 +276,62 @@ describe('matchmaking http integration', () => {
     const proposal = await testApp.service.runQueueCycle(queue.queueKey)
     expect(proposal?.proposalId).toBeTruthy()
   }, 20_000)
+
+  it('fails runQueueCycle fast during Redis outage and recovers after Redis is restored', async () => {
+    const testApp = await createMatchmakingTestApplication()
+    cleanups.push(testApp.cleanup)
+    cleanups.push(async () => {
+      await ensureComposeServiceRunning('redis')
+      await waitForRedisAvailability()
+    })
+
+    const queue = await createQueuedPair(testApp)
+
+    await stopComposeService('redis')
+    await waitFor(async () => {
+      const request = await testApp.service.getRequest(queue.requestIds[0], { playerId: 'player-1', requestId: randomUUID() })
+      expect(request.runtime.available).toBe(false)
+    })
+
+    const startedAt = Date.now()
+    const rejection = await testApp.service.runQueueCycle(queue.queueKey).catch((error: unknown) => error)
+    const elapsedMs = Date.now() - startedAt
+
+    expect(elapsedMs).toBeLessThan(2_000)
+    expect(rejection).toMatchObject({
+      getStatus: expect.any(Function),
+      getResponse: expect.any(Function),
+    })
+    expect(rejection.getStatus()).toBe(503)
+    expect(rejection.getResponse()).toEqual({ code: 'MATCHMAKING_UNAVAILABLE' })
+
+    const queuedAfterFailure = await Promise.all(queue.requestIds.map((requestId) => testApp.repository.getRequestById(requestId)))
+    expect(queuedAfterFailure).toEqual([
+      expect.objectContaining({ requestId: queue.requestIds[0], status: 'queued', activeProposalId: null }),
+      expect.objectContaining({ requestId: queue.requestIds[1], status: 'queued', activeProposalId: null }),
+    ])
+    expect(await countQueueProposals(testApp.connectionString, queue.queueKey)).toBe(0)
+
+    await ensureComposeServiceRunning('redis')
+    await waitForRedisAvailability()
+
+    await testApp.service.getRequest(queue.requestIds[0], { playerId: 'player-1', requestId: randomUUID() })
+    await testApp.service.getRequest(queue.requestIds[1], { playerId: 'player-2', requestId: randomUUID() })
+    await waitFor(async () => {
+      expect((await testApp.store.getCandidateRequestIds(queue.queueKey, 10)).sort()).toEqual([...queue.requestIds].sort())
+    })
+
+    await testApp.service.getRequest(queue.requestIds[0], { playerId: 'player-1', requestId: randomUUID() })
+    await testApp.service.getRequest(queue.requestIds[1], { playerId: 'player-2', requestId: randomUUID() })
+    await waitFor(async () => {
+      expect((await testApp.store.getCandidateRequestIds(queue.queueKey, 10)).sort()).toEqual([...queue.requestIds].sort())
+    })
+
+    const proposal = await testApp.service.runQueueCycle(queue.queueKey)
+    expect(proposal?.proposalId).toBeTruthy()
+    expect(await testApp.store.getCandidateRequestIds(queue.queueKey, 10)).toEqual([])
+    expect(await countQueueProposals(testApp.connectionString, queue.queueKey)).toBe(1)
+  }, 45_000)
 })
 
 async function createMatchmakingTestApplication() {
@@ -315,6 +377,7 @@ async function createMatchmakingTestApplication() {
   return {
     app,
     baseUrl,
+    connectionString: database.connectionString,
     repository,
     store,
     service,
@@ -324,6 +387,65 @@ async function createMatchmakingTestApplication() {
       await redis.cleanup()
       await database.cleanup()
     },
+  }
+}
+
+async function stopComposeService(service: string) {
+  await runDockerCompose(['stop', service])
+}
+
+async function ensureComposeServiceRunning(service: string) {
+  await runDockerCompose(['up', '-d', service])
+}
+
+async function runDockerCompose(args: string[]) {
+  await execFileAsync('docker', ['compose', '-f', 'docker-compose.yml', '-f', 'docker-compose.dev.yml', ...args], {
+    cwd: repoRoot,
+    windowsHide: true,
+  })
+}
+
+async function waitForRedisAvailability() {
+  await waitFor(async () => {
+    const client = createClient({ url: redisUrl })
+    client.on('error', () => {})
+
+    try {
+      await client.connect()
+      expect(await client.ping()).toBe('PONG')
+    } finally {
+      if (client.isOpen) {
+        await client.quit()
+      }
+    }
+  })
+}
+
+async function waitFor(assertion: () => Promise<void>, timeoutMs = 10_000, intervalMs = 100) {
+  const startedAt = Date.now()
+  let lastError: unknown = null
+
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      await assertion()
+      return
+    } catch (error) {
+      lastError = error
+      await new Promise((resolve) => setTimeout(resolve, intervalMs))
+    }
+  }
+
+  throw lastError ?? new Error('Timed out waiting for condition')
+}
+
+async function countQueueProposals(connectionString: string, queueKey: string) {
+  const pool = createCatalogPool(connectionString)
+
+  try {
+    const result = await pool.query<{ count: number }>('select count(*)::int as count from match_proposals where queue_key = $1', [queueKey])
+    return result.rows[0]?.count ?? 0
+  } finally {
+    await pool.end()
   }
 }
 
