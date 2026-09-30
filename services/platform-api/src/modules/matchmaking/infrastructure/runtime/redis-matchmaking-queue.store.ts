@@ -133,8 +133,6 @@ export class RedisMatchmakingQueueStore implements MatchmakingQueueStore {
 
     try {
       return await Promise.race([command, pendingUnavailable.promise])
-    } catch (error) {
-      throw error
     } finally {
       pendingUnavailable.dispose()
     }

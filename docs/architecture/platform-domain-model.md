@@ -12,17 +12,17 @@ Status: Accepted source of truth for Foundation Slice 1.1 domain modeling
 | Catalog | Active domain seed | Canonical game definitions, manifests, versions, and capabilities. |
 | Lobby | Active domain seed | Pre-session room lifecycle, members, readiness, visibility, and launch intent. |
 | Matchmaking | Active persisted domain | Durable matchmaking requests and proposals in PostgreSQL plus ephemeral queue runtime coordination in Redis. |
-| Sessions | Active domain seed | Session metadata, participant roster, connection handoff, result envelope, and game-server allocation orchestration. |
+| Sessions | Active persisted domain | Durable session lifecycle, participant roster, source-match snapshot, and allocation-request orchestration boundary. |
 
-The intent is explicit: Phase 1 keeps boundary shells only where the business capability is not yet active, while the gameplay-adjacent flow is modeled now as real domains. Catalog, Lobby, and Matchmaking are persisted; Sessions remains a seed boundary for later slices.
+The intent is explicit: Phase 1 keeps boundary shells only where the business capability is not yet active, while the gameplay-adjacent flow is modeled now as real domains. Catalog, Lobby, Matchmaking, and Sessions are persisted boundaries.
 
 ## Domain Separation Rules
 
 - `Catalog` owns what a game is and which platform capabilities it advertises.
 - `Lobby` owns how a group prepares to launch a game.
 - `Matchmaking` owns how queued demand becomes a match.
-- `Sessions` owns post-match metadata and handoff to an authoritative game runtime.
-- `Game Server Allocation` is a subdomain of `Sessions`, not a separate top-level module in Phase 1.
+- `Sessions` owns post-match durable lifecycle metadata and the boundary to later authoritative game runtime allocation.
+- `Game Server Allocation` is a subdomain boundary of `Sessions`, not a separate top-level module in Phase 1.
 - Platform services never own gameplay state, win logic, or simulation state.
 - Platform APIs return domain-safe identifiers, metadata, and error codes rather than translated user messages.
 
@@ -150,22 +150,24 @@ Exit states:
 
 ### Aggregates and Value Objects
 
-- `GameSession`: metadata record for a launched play session.
-- `SessionParticipant`: player or spectator attached to the session.
-- `SessionEndpoint`: connection handoff returned to clients.
-- `SessionState`: `allocating -> ready -> active -> ending -> completed | terminated | failed`.
-- `SessionResult`: envelope reported by the authoritative game runtime.
+- `DurableGameSession`: durable aggregate root persisted in PostgreSQL.
+- `DurableSessionParticipant`: durable participant snapshot persisted in PostgreSQL.
+- `SessionSource`: current origin reference for the trusted Matchmaking decision.
+- `SessionStatus`: `created | allocating | ready | connecting | active | completing | completed | failed | cancelled | expired`.
+- `SessionFailureCode`: current durable failure classification for pre-runtime failures.
 
 ### Match vs Session Distinction
 
 - A `Match` is the matchmaking outcome that says who should play.
 - A `GameSession` is the runtime instance that says where and how they play.
-- Not all sessions come from matchmaking. Private lobbies may allocate a session directly.
+- P01 supports Matchmaking as the only concrete session source.
+- Other sources such as direct private-lobby launch remain future extensions of the same aggregate shape.
 
 ### Persistent vs Ephemeral
 
-- Persistent later in PostgreSQL: session identity, participants, version tuple, allocation references, result envelope.
-- Ephemeral in Redis later: reconnect tokens, transient connection handoff state, live presence markers.
+- Persistent in PostgreSQL now: session identity, source match snapshot, participants, compatibility tuple, lifecycle timestamps, expiry, and failure code.
+- Ephemeral in Redis: none in P01.
+- Derived: `expired` status materialized on access from `expiresAt`.
 
 ## Game Server Allocation Subdomain
 
@@ -184,8 +186,9 @@ Exit states:
 
 ### Current Phase 1 Rule
 
-- keep allocator as an interface plus no-op DEV implementation
+- keep allocator as an interface boundary only
 - do not implement real Docker or Kubernetes provisioning in this slice
+- do not fabricate connection metadata before a real allocator exists
 
 ## Sequence Diagrams
 
@@ -215,11 +218,10 @@ sequenceDiagram
 
     Lobby->>Matchmaking: enqueue ticket
     Matchmaking-->>Lobby: proposal accepted
-    Matchmaking->>Sessions: create session request
-    Sessions->>Allocator: allocate game runtime
-    Allocator-->>Sessions: server ready endpoint
-    Sessions-->>Lobby: session handoff metadata
-    Lobby-->>Runtime: players connect using endpoint
+    Matchmaking->>Sessions: trusted match-ready handoff
+    Sessions->>Sessions: persist session + participants
+    Sessions->>Allocator: request allocation boundary
+    Note over Allocator,Runtime: concrete runtime provisioning is out of scope in P01
 ```
 
 ### Result Reporting
@@ -242,7 +244,7 @@ sequenceDiagram
 | Game manifest missing or incompatible version | Catalog | launch blocked before lobby launch |
 | Lobby host disconnects before allocation | Lobby | lobby ownership reassignment or closure |
 | Queue proposal expires | Matchmaking | ticket returns to queue or expires |
-| Allocator fails to provision server | Sessions | session enters failed state and lobby receives retry or error surface |
+| Allocation request dispatch fails | Sessions | session enters durable `failed` with `ALLOCATION_REQUEST_FAILED` |
 | Runtime never reports heartbeat | Sessions | session marked unhealthy and escalated to allocator or operators |
 | Result payload invalid for contract version | Sessions | reject envelope and preserve session for retry or termination |
 
@@ -251,7 +253,7 @@ sequenceDiagram
 - `enqueue matchmaking ticket`: idempotent by client request key or lobby ticket key.
 - `accept proposal`: idempotent by `proposalId + ticketId`.
 - `create session from match`: idempotent by `matchId`.
-- `allocate server`: idempotent by `sessionId`.
+- `request allocation`: claimed at most once from `created` per `sessionId`.
 - `report result`: idempotent by `sessionId + reportedAt` or a runtime-issued report identifier.
 - `terminate session`: idempotent by `sessionId`.
 

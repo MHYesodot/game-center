@@ -1,1 +1,1 @@
-Sessions module boundary placeholder.
+Sessions module owns durable session lifecycle after Matchmaking produces a trusted match-ready result.

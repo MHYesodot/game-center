@@ -47,7 +47,7 @@ Current Slice 1.1 module classification:
 | Social | Boundary placeholder | reserved boundary for parties, presence, and graph ownership |
 | Lobby | Active persisted domain | owns durable lobby lifecycle and membership in PostgreSQL plus ephemeral runtime readiness and presence in Redis |
 | Matchmaking | Active persisted domain | owns durable matchmaking requests and proposals in PostgreSQL plus ephemeral Redis queue coordination |
-| Sessions | Active domain seed | now models session lifecycle and game-server allocation orchestration as in-memory seeds |
+| Sessions | Active persisted domain | owns durable session lifecycle in PostgreSQL and snapshots trusted matched participants before allocator/runtime integration |
 
 Detailed invariants, state machines, event catalog, and ephemeral vs persistent ownership for these domains live in `docs/architecture/platform-domain-model.md`.
 
@@ -124,7 +124,15 @@ Default language and runtime choices are fixed unless an ADR approves an excepti
 - `GET /api/matchmaking/requests/:requestId` may still return durable request state with `runtime.available = false` when Redis is down.
 - Queue mutation paths degrade to semantic `503` responses with `MATCHMAKING_UNAVAILABLE` when PostgreSQL or Redis cannot support the command.
 - Matchmaking reads Catalog only through the public catalog query boundary and does not depend on Lobby or Session persistence internals.
-- Match readiness stops at an internal `MatchReadySink` boundary in this slice; session persistence and game-server allocation are intentionally not implemented yet.
+- Match readiness stops at public Session handoff boundaries: Matchmaking publishes through `MatchReadySink`, and Sessions reads trusted match details through `MatchReadyQuery`.
+
+## Current Session Runtime
+
+- Session durable state is now served from PostgreSQL through repository ports owned by the `Sessions` module.
+- Session creation snapshots the trusted matched proposal and participant source request ids from Matchmaking.
+- Sessions is Postgres-only in P01; it does not depend on Redis for source-of-truth behavior.
+- Allocation remains a boundary call only; P01 does not return fabricated runtime endpoint metadata.
+- `POST /api/sessions` is idempotent by `matchId`, and `GET /api/sessions/:sessionId` is authorized by persisted participant membership.
 
 ## Target System Diagram
 

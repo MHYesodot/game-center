@@ -20,7 +20,7 @@
 | `social` | Friends, parties, social graph metadata | `social.*` | Application interfaces and domain events | HTTP + integration events | Preserves extraction path |
 | `lobby` | Durable lobby lifecycle, membership history, ownership, and ephemeral runtime readiness/presence | `lobby.*` durable tables in PostgreSQL plus versioned Redis runtime keys | Application interfaces plus durable repository and runtime-store ports | HTTP; no expanded integration events in Slice 3 | No game rules allowed; PostgreSQL is durable truth and Redis is runtime-only |
 | `matchmaking` | Durable request/proposal orchestration and ephemeral queue coordination | `matchmaking.*` durable tables in PostgreSQL plus versioned Redis queue-runtime keys | Application interfaces plus durable repository and runtime-store ports | HTTP in Slice 4; no expanded integration events until a real downstream consumer exists | PostgreSQL is durable truth, Redis is runtime-only, and session handoff stops at `MatchReadySink` |
-| `sessions` | Session metadata and game server allocation orchestration | `sessions.*` | Application interfaces and domain events | HTTP + NATS | Owns allocator abstraction and session lifecycle |
+| `sessions` | Durable session lifecycle and participant snapshot after Matchmaking handoff | `sessions.*` durable tables in PostgreSQL | Application interfaces plus durable repository and allocation/query boundaries | HTTP in P01; no expanded integration events yet | Owns session lifecycle now while keeping allocator/runtime integration behind explicit boundaries |
 
 ## Game Components
 

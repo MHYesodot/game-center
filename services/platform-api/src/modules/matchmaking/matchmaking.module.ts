@@ -6,9 +6,11 @@ import type { Pool } from 'pg'
 
 import { CLOCK } from '../../boundaries/clock.js'
 import { ID_GENERATOR } from '../../boundaries/id-generator.js'
+import { MATCH_READY_QUERY } from '../../boundaries/match-ready-query.js'
 import { DATABASE_POOL } from '../../infrastructure/infrastructure.tokens.js'
 import { CatalogQueryModule } from '../../module-bindings/catalog-query.module.js'
 import { MatchmakingService } from './application/matchmaking.service.js'
+import { DelegatingMatchReadySink } from './application/delegating-match-ready-sink.js'
 import {
   MATCHMAKING_QUEUE_STORE,
   MATCHMAKING_REPOSITORY,
@@ -26,6 +28,7 @@ import { RedisMatchmakingQueueStore } from './infrastructure/runtime/redis-match
   controllers: [MatchmakingController],
   providers: [
     MatchmakingService,
+    DelegatingMatchReadySink,
     PostgresMatchmakingRepository,
     RedisMatchmakingQueueStore,
     {
@@ -46,9 +49,11 @@ import { RedisMatchmakingQueueStore } from './infrastructure/runtime/redis-match
     },
     {
       provide: MATCH_READY_SINK,
-      useValue: {
-        async onMatchReady() {},
-      },
+      useExisting: DelegatingMatchReadySink,
+    },
+    {
+      provide: MATCH_READY_QUERY,
+      useExisting: MatchmakingService,
     },
     {
       provide: MATCHMAKING_DRIZZLE_DB,
@@ -64,5 +69,6 @@ import { RedisMatchmakingQueueStore } from './infrastructure/runtime/redis-match
       useExisting: RedisMatchmakingQueueStore,
     },
   ],
+  exports: [MATCH_READY_QUERY],
 })
 export class MatchmakingModule {}

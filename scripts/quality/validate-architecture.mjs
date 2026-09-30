@@ -361,6 +361,20 @@ for (const filePath of files) {
     }
 
     if (
+      normalizedFilePath.includes('/services/platform-api/src/modules/sessions/domain/') &&
+      /^(?:drizzle-orm(?:\/|$)|pg$|redis$)/.test(specifier)
+    ) {
+      violations.push(`${toRelative(filePath)} sessions domain layer must not depend on raw persistence or runtime clients: ${specifier}`)
+    }
+
+    if (
+      normalizedFilePath.includes('/services/platform-api/src/modules/sessions/application/') &&
+      /^(?:drizzle-orm(?:\/|$)|pg$|redis$)/.test(specifier)
+    ) {
+      violations.push(`${toRelative(filePath)} sessions application layer must not depend on raw persistence or runtime clients: ${specifier}`)
+    }
+
+    if (
       owner.scope === 'games' &&
       productionGamePathPattern.test(normalizedFilePath) &&
       normalizePath(specifier).includes('platform-api/src/')
@@ -416,6 +430,13 @@ for (const filePath of files) {
       normalizedResolved.includes('/services/platform-api/src/modules/lobby/infrastructure/')
     ) {
       violations.push(`${toRelative(filePath)} matchmaking must not depend on lobby persistence internals: ${specifier}`)
+    }
+
+    if (
+      normalizedFilePath.includes('/services/platform-api/src/modules/sessions/') &&
+      normalizedResolved.includes('/services/platform-api/src/modules/matchmaking/infrastructure/')
+    ) {
+      violations.push(`${toRelative(filePath)} sessions must use matchmaking public boundaries, not matchmaking persistence or runtime internals: ${specifier}`)
     }
 
     if (normalizedFilePath.includes('/services/platform-api/src/modules/') && normalizedFilePath.includes('/domain/')) {

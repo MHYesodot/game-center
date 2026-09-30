@@ -82,7 +82,7 @@ The repository currently proves:
 - Catalog: `DONE`
 - Lobby: `DONE`
 - Matchmaking: `DONE`
-- Session Lifecycle: `READY`
+- Session Lifecycle: `DONE`
 
 No future phase is treated as complete unless the repository and existing documentation prove it.
 
@@ -91,8 +91,8 @@ No future phase is treated as complete unless the repository and existing docume
 | Phase | Status | Depends On | Summary |
 | --- | --- | --- | --- |
 | P00 Foundation | DONE | none | Foundation platform architecture and baseline persisted domains. |
-| P01 Session Lifecycle | READY | P00 | Durable session lifecycle after match acceptance. |
-| P02 GameServerAllocator Abstraction | NOT_STARTED | P01 | Provider-neutral allocation contract. |
+| P01 Session Lifecycle | DONE | P00 | Durable session lifecycle after match acceptance. |
+| P02 GameServerAllocator Abstraction | READY | P01 | Provider-neutral allocation contract. |
 | P03 Docker DEV Game Allocator | NOT_STARTED | P02 | First real session-to-server allocation flow. |
 | P04 Realtime Gateway | NOT_STARTED | P01, P03 | Authenticated realtime transport and subscriptions. |
 | P05 Authentication & Identity | NOT_STARTED | P04 | Replace transitional identity paths. |
@@ -340,7 +340,7 @@ Deferred Items:
 
 ### P01 Session Lifecycle
 
-Status: `READY`
+Status: `DONE`
 
 Purpose:
 
@@ -422,7 +422,7 @@ Deferred Items:
 
 ### P02 GameServerAllocator Abstraction
 
-Status: `NOT_STARTED`
+Status: `READY`
 
 Purpose:
 

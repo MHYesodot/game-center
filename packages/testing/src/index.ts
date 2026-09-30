@@ -172,30 +172,42 @@ export function buildLobby(overrides: Partial<LobbyDetails> = {}): LobbyDetails 
 export function buildGameSession(overrides: Partial<GameSession> = {}): GameSession {
   const base: GameSession = {
     sessionId: 'session-signal-grid-1',
-    gameId: 'signal-grid',
-    state: 'ready',
-    version: {
-      gameVersion: '0.1.0-prototype',
-      protocolVersion: 'v1',
-      buildVersion: 'prototype',
+    source: {
+      kind: 'matchmaking',
+      matchId: 'match-signal-grid-1',
+      proposalId: 'proposal-signal-grid-1',
     },
+    gameId: 'signal-grid',
+    queueType: 'quick-play',
+    platform: 'web',
+    region: null,
+    gameVersion: '0.1.0-prototype',
+    protocolVersion: 'v1',
+    status: 'allocating',
     participants: [
       {
         playerId: 'player-1',
-        role: 'host',
+        sourceRequestId: 'request-1',
+        sourceLobbyId: null,
         joinedAt: fixedIso(),
       },
     ],
     createdAt: fixedIso(),
     updatedAt: fixedIso('2026-09-29T10:04:00Z'),
+    startedAt: null,
+    completedAt: null,
+    failedAt: null,
+    cancelledAt: null,
+    expiresAt: fixedIso('2026-09-29T10:15:00Z'),
+    failureCode: null,
   }
 
   return {
     ...base,
     ...overrides,
-    version: {
-      ...base.version,
-      ...overrides.version,
+    source: {
+      ...base.source,
+      ...overrides.source,
     },
     participants: overrides.participants ?? base.participants,
   }

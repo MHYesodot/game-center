@@ -1,73 +1,66 @@
-export type SessionTransport = 'ws' | 'tcp' | 'udp' | 'custom'
+import type { MatchmakingPlatform, MatchmakingQueueType } from './matchmaking.js'
 
-export type SessionState =
+export type SessionStatus =
+  | 'created'
   | 'allocating'
   | 'ready'
+  | 'connecting'
   | 'active'
-  | 'ending'
+  | 'completing'
   | 'completed'
-  | 'terminated'
   | 'failed'
+  | 'cancelled'
+  | 'expired'
 
-export type SessionParticipantRole = 'host' | 'player' | 'spectator'
+export type SessionFailureCode = 'ALLOCATION_REQUEST_FAILED'
 
-export type SessionVersion = {
-  gameVersion: string
-  protocolVersion: string
-  buildVersion: string
-}
-
-export type SessionEndpoint = {
-  transport: SessionTransport
-  endpoint: string
-  token?: string
-  region?: string
-  expiresAt?: string
+export type SessionSource = {
+  kind: 'matchmaking'
+  matchId: string
+  proposalId: string
 }
 
 export type SessionParticipant = {
   playerId: string
-  role: SessionParticipantRole
+  sourceRequestId: string
+  sourceLobbyId: string | null
   joinedAt: string
-  connectedAt?: string
-  leftAt?: string
-}
-
-export type SessionResult = {
-  outcome: 'completed' | 'aborted' | 'failed'
-  winnerPlayerIds: string[]
-  completedAt: string
-  attributes: Record<string, string | number | boolean>
 }
 
 export type GameSession = {
   sessionId: string
+  source: SessionSource
   gameId: string
-  state: SessionState
-  version: SessionVersion
+  queueType: MatchmakingQueueType
+  platform: MatchmakingPlatform
+  region: string | null
+  gameVersion: string
+  protocolVersion: string
+  status: SessionStatus
   participants: SessionParticipant[]
   createdAt: string
   updatedAt: string
-  lobbyId?: string
-  matchId?: string
-  allocationId?: string
-  endpoint?: SessionEndpoint
-  result?: SessionResult
+  startedAt: string | null
+  completedAt: string | null
+  failedAt: string | null
+  cancelledAt: string | null
+  expiresAt: string | null
+  failureCode: SessionFailureCode | null
 }
 
-export type SessionEnvelope = {
-  sessionId: string
-  gameId: string
-  gameVersion: string
-  protocolVersion: string
-  buildVersion: string
-  connectionInfo?: SessionEndpoint
+export type CreateSessionRequest = {
+  matchId: string
 }
 
-export type ResultEnvelope = {
-  sessionId: string
-  gameId: string
-  winnerPlayerIds: string[]
-  completedAt: string
-  attributes: Record<string, string | number | boolean>
+export type SessionErrorCode =
+  | 'SESSION_NOT_FOUND'
+  | 'MATCH_NOT_READY'
+  | 'SESSION_INVALID_STATE'
+  | 'SESSION_EXPIRED'
+  | 'SESSION_CREATION_FAILED'
+  | 'SESSION_UNAVAILABLE'
+  | 'INVALID_PLAYER_ID'
+
+export type SessionErrorResponse = {
+  code: SessionErrorCode
 }

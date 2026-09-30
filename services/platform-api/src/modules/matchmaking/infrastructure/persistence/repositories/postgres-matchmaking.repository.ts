@@ -33,6 +33,10 @@ export class PostgresMatchmakingRepository implements MatchmakingRepository {
     return findProposal(this.db, proposalId)
   }
 
+  async getProposalByMatchId(matchId: string): Promise<DurableMatchProposalAggregate | null> {
+    return findProposalByMatchId(this.db, matchId)
+  }
+
   async getActiveRequestByRequester(requester: { type: string; id: string }): Promise<DurableMatchmakingRequest | null> {
     const rows = await this.db
       .select()
@@ -293,4 +297,27 @@ function mapProposalMemberInsert(member: DurableMatchProposalMember) {
     acceptanceStatus: member.acceptanceStatus,
     respondedAt: member.respondedAt,
   }
+}
+
+async function findProposalByMatchId(executor: MatchmakingQueryExecutor, matchId: string): Promise<DurableMatchProposalAggregate | null> {
+  const rows = await executor
+    .select({
+      proposal: matchProposals,
+      member: matchProposalMembers,
+    })
+    .from(matchProposals)
+    .leftJoin(matchProposalMembers, eq(matchProposals.proposalId, matchProposalMembers.proposalId))
+    .where(eq(matchProposals.matchId, matchId))
+    .orderBy(asc(matchProposalMembers.id))
+
+  if (rows.length === 0) {
+    return null
+  }
+
+  return mapProposalRows(
+    rows.map((row: { proposal: MatchProposalRow; member: MatchProposalMemberRow | null }) => ({
+      proposal: row.proposal,
+      member: row.member,
+    })),
+  )
 }

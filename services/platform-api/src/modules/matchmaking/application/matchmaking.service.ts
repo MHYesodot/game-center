@@ -9,6 +9,7 @@ import type {
   MatchReadyPayload,
 } from '@game-center/contracts'
 
+import { MATCH_READY_QUERY, type MatchReadyQuery } from '../../../boundaries/match-ready-query.js'
 import { type CatalogQueryService, CATALOG_QUERY_SERVICE } from '../../../boundaries/catalog-query.js'
 import { type Clock, CLOCK } from '../../../boundaries/clock.js'
 import { type IdGenerator, ID_GENERATOR } from '../../../boundaries/id-generator.js'
@@ -155,6 +156,38 @@ export class MatchmakingService {
     return this.composeProposalDetails(proposal)
   }
 
+  async getMatchReady(matchId: string): Promise<MatchReadyPayload | null> {
+    const proposal = await this.matchmakingRepository.getProposalByMatchId(matchId).catch((error) => {
+      this.handlePostgresError(error)
+      throw error
+    })
+
+    if (!proposal || proposal.status !== 'matched' || !proposal.matchId) {
+      return null
+    }
+
+    const participants = await Promise.all(
+      proposal.members.map(async (member) => {
+        const request = await this.matchmakingRepository.getRequestById(member.requestId).catch((error) => {
+          this.handlePostgresError(error)
+          throw error
+        })
+
+        if (!request) {
+          this.throwMatchmakingError('MATCHMAKING_UNAVAILABLE', HttpStatus.SERVICE_UNAVAILABLE)
+        }
+
+        return {
+          playerId: member.playerId,
+          requestId: member.requestId,
+          sourceLobbyId: request.sourceLobbyId,
+        }
+      }),
+    )
+
+    return this.toMatchReadyPayload(proposal, participants, proposal.matchId)
+  }
+
   async acceptProposal(proposalId: string, identity: MatchmakingRequestIdentity): Promise<MatchProposalDetails> {
     const now = this.clock.now().toISOString()
 
@@ -208,6 +241,7 @@ export class MatchmakingService {
       }
 
       const matchId = this.idGenerator.nextId()
+      const matchedRequests: DurableMatchmakingRequest[] = []
       await transaction.updateProposal({
         ...updated,
         status: 'matched',
@@ -230,12 +264,21 @@ export class MatchmakingService {
           terminalOutcome: 'matched',
           activeProposalId: null,
         })
+        matchedRequests.push(request)
       }
 
       const matchedProposal = await this.requireProposalForUpdate(transaction, proposalId)
       return {
         proposal: matchedProposal,
-        payload: this.toMatchReadyPayload(matchedProposal, matchId),
+        payload: this.toMatchReadyPayload(
+          matchedProposal,
+          matchedRequests.map((request) => ({
+            playerId: request.requesterId,
+            requestId: request.requestId,
+            sourceLobbyId: request.sourceLobbyId,
+          })),
+          matchId,
+        ),
         requeueRequestIds: [],
       }
     }).catch((error) => {
@@ -866,17 +909,21 @@ export class MatchmakingService {
     return typeof error === 'object' && error !== null && 'code' in error && error.code === '23505'
   }
 
-  private toMatchReadyPayload(proposal: DurableMatchProposalAggregate, matchId: string): MatchReadyPayload {
+  private toMatchReadyPayload(
+    proposal: DurableMatchProposalAggregate,
+    participants: MatchReadyPayload['participants'],
+    matchId: string,
+  ): MatchReadyPayload {
     return {
       matchId,
       proposalId: proposal.proposalId,
       gameId: proposal.gameId,
+      queueType: proposal.queueType,
+      region: proposal.region,
       gameVersion: proposal.gameVersion,
       protocolVersion: proposal.protocolVersion,
       platform: proposal.platform,
-      requestIds: proposal.members.map((member) => member.requestId),
-      playerIds: proposal.members.map((member) => member.playerId),
-      sourceLobbyIds: [],
+      participants,
     }
   }
 

@@ -66,6 +66,15 @@ describe('quality validators', () => {
     expect(result.stderr).toContain('matchmaking must not depend on lobby persistence internals')
   })
 
+  it('rejects session boundary violations', () => {
+    const result = runValidator('validate-architecture.mjs', 'architecture-invalid-session-boundaries')
+
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('sessions domain layer must not depend on raw persistence or runtime clients')
+    expect(result.stderr).toContain('sessions application layer must not depend on raw persistence or runtime clients')
+    expect(result.stderr).toContain('sessions must use matchmaking public boundaries, not matchmaking persistence or runtime internals')
+  })
+
   it('rejects raw design literals outside approved token files', () => {
     const result = runValidator('validate-design.mjs', 'design-invalid')
 

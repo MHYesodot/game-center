@@ -37,6 +37,7 @@ export interface MatchmakingRepositoryTransaction {
 export interface MatchmakingRepository {
   getRequestById(requestId: string): Promise<DurableMatchmakingRequest | null>
   getProposalById(proposalId: string): Promise<DurableMatchProposalAggregate | null>
+  getProposalByMatchId(matchId: string): Promise<DurableMatchProposalAggregate | null>
   getActiveRequestByRequester(requester: MatchmakingRequester): Promise<DurableMatchmakingRequest | null>
   withTransaction<T>(callback: (transaction: MatchmakingRepositoryTransaction) => Promise<T>): Promise<T>
 }

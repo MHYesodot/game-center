@@ -68,16 +68,22 @@ export type MatchProposalDetails = {
   members: MatchProposalMember[]
 }
 
+export type MatchReadyParticipant = {
+  playerId: string
+  requestId: string
+  sourceLobbyId: string | null
+}
+
 export type MatchReadyPayload = {
   matchId: string
   proposalId: string
   gameId: string
+  queueType: MatchmakingQueueType
+  region: string | null
   gameVersion: string
   protocolVersion: string
   platform: MatchmakingPlatform
-  requestIds: string[]
-  playerIds: string[]
-  sourceLobbyIds: string[]
+  participants: MatchReadyParticipant[]
 }
 
 export type CreateMatchmakingRequest = {
