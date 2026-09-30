@@ -13,6 +13,9 @@
   "surfaces": {
     "mainLobby": "Main lobby"
   },
+  "states": {
+    "loading": "Loading..."
+  },
   "formats": {
     "categoryLobbies": "{category} lobbies"
   }

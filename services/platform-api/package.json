@@ -9,7 +9,9 @@
     "start:test": "tsx src/main.ts",
     "db:generate": "drizzle-kit generate --config drizzle.config.ts",
     "db:migrate": "tsx src/modules/catalog/infrastructure/persistence/scripts/migrate.ts",
+    "db:status": "drizzle-kit check --config drizzle.config.ts",
     "db:seed": "tsx src/modules/catalog/infrastructure/persistence/scripts/seed.ts",
+    "db:prepare": "npm run db:migrate && npm run db:seed",
     "lint": "oxlint src",
     "test": "vitest run \"src/**/*.spec.ts\"",
     "test:integration": "vitest run --config vitest.integration.config.mjs"

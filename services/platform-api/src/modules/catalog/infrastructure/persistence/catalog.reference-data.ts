@@ -1,6 +1,6 @@
 import type { CatalogGame } from '../../domain/catalog-game.js'
 
-export const catalogSeedGames: CatalogGame[] = [
+export const catalogReferenceGames: CatalogGame[] = [
   {
     definition: {
       gameId: 'signal-grid',

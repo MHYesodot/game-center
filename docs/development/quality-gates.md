@@ -18,11 +18,13 @@ The enforced gates are:
 - `npm run validate:design` fails when raw color, gradient, or motion literals appear outside approved token-definition files.
 - `npm run validate:architecture` fails on hard-coded UI text in React render paths, invalid import boundaries, NestJS usage in domain layers, cross-module internal imports, and circular dependencies.
 - `npm run test:unit` runs unit tests for validator gates and pure domain helpers.
-- `npm run test:e2e` runs Playwright smoke tests for locale direction, lobby navigation, API health, and accessibility.
+- `npm run test:integration` runs isolated PostgreSQL catalog integration tests, including migration-from-empty, reference-data application, mapper coverage, repository reads, and catalog HTTP contract checks.
+- `npm run test:e2e` runs Playwright smoke tests for locale direction, catalog list/detail flows, semantic not-found behavior, API health, and accessibility.
 
 The primary local developer entrypoints are:
 
 - `npm run validate` for static contract and architecture checks.
+- `npm run db:prepare` for explicit local catalog migration plus reference-data application.
 - `npm run ci:quality` for the full local CI-equivalent quality pass except browser installation.
 
 CI mirrors the same gates in [.github/workflows/ci.yml](.github/workflows/ci.yml), then validates both Docker Compose configurations with:

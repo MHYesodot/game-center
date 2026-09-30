@@ -12,5 +12,13 @@
     "clientLaunch": "Client launch",
     "runtime": "Runtime",
     "serverFocus": "Server focus"
+  },
+  "loading": {
+    "eyebrow": "Loading lobby",
+    "title": "Loading game lobby details."
+  },
+  "error": {
+    "eyebrow": "Catalog unavailable",
+    "title": "Unable to load this game lobby right now."
   }
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BrowserRouter, Link, NavLink, Route, Routes, useParams } from 'react-router-dom'
-import type { CatalogListResponse, GameDefinition } from '@game-center/contracts'
+import type { CatalogErrorResponse, CatalogListResponse, GameDefinition } from '@game-center/contracts'
 import { formatNumber, getTextDirection, translate, translateList, type SupportedLocale } from '@game-center/i18n'
 import './App.css'
 
@@ -12,6 +12,12 @@ type RemoteCatalogState = {
   locale: SupportedLocale
   games: Game[]
 }
+
+type GameDetailState =
+  | { status: 'loading'; game: null; errorKey: null }
+  | { status: 'ready'; game: Game; errorKey: null }
+  | { status: 'notFound'; game: null; errorKey: 'errors.catalog.gameNotFound' }
+  | { status: 'error'; game: null; errorKey: 'errors.catalog.loadFailed' | 'errors.common.unknown' }
 
 type GameSeed = {
   gameId: 'signal-grid' | 'rush-lane' | 'aether-flight'
@@ -136,7 +142,6 @@ function App({ locale }: { locale: SupportedLocale }) {
 }
 
 function GameCenter({ locale }: { locale: SupportedLocale }) {
-  const { games, source, errorKey } = useGameCatalog(locale)
   const direction = getTextDirection(locale)
 
   return (
@@ -160,22 +165,26 @@ function GameCenter({ locale }: { locale: SupportedLocale }) {
         </nav>
         <div className="source-pill">
           {translate(locale, 'catalog.source.label', {
-            source: translate(locale, sourceLabelKeyBySource[source]),
+            source: translate(locale, sourceLabelKeyBySource.liveService),
           })}
         </div>
       </header>
 
-      {errorKey ? <p className="eyebrow">{translate(locale, errorKey)}</p> : null}
-
       <Routes>
-        <Route path="/" element={<HomePage games={games} locale={locale} />} />
-        <Route path="/game/:slug" element={<GameLobbyPage games={games} locale={locale} />} />
+        <Route path="/" element={<HomePageRoute locale={locale} />} />
+        <Route path="/game/:slug" element={<GameLobbyPage locale={locale} />} />
       </Routes>
     </div>
   )
 }
 
-function HomePage({ games, locale }: { games: Game[]; locale: SupportedLocale }) {
+function HomePageRoute({ locale }: { locale: SupportedLocale }) {
+  const { games, errorKey } = useGameCatalog(locale)
+
+  return <HomePage games={games} locale={locale} errorKey={errorKey} />
+}
+
+function HomePage({ games, locale, errorKey }: { games: Game[]; locale: SupportedLocale; errorKey: string | null }) {
   const categories = useMemo(
     () =>
       categoryOrder.map((categoryKey) => ({
@@ -189,6 +198,7 @@ function HomePage({ games, locale }: { games: Game[]; locale: SupportedLocale })
     <main className="page">
       <section className="hero-panel">
         <div className="hero-copy">
+          {errorKey ? <p className="eyebrow">{translate(locale, errorKey)}</p> : null}
           <p className="eyebrow">{translate(locale, 'catalog.hero.eyebrow')}</p>
           <h1>{translate(locale, 'catalog.hero.title')}</h1>
           <p className="hero-text">{translate(locale, 'catalog.hero.body')}</p>
@@ -290,17 +300,31 @@ function HomePage({ games, locale }: { games: Game[]; locale: SupportedLocale })
   )
 }
 
-function GameLobbyPage({ games, locale }: { games: Game[]; locale: SupportedLocale }) {
+function GameLobbyPage({ locale }: { locale: SupportedLocale }) {
   const { slug } = useParams<{ slug: string }>()
-  const game = games.find((entry) => entry.slug === slug)
+  const detailState = useGameDetail(slug, locale)
 
-  if (!game) {
+  if (detailState.status === 'loading') {
     return (
-      <main className="page lobby-page">
+      <main className="page lobby-page" data-testid="game-detail-loading">
+        <section className="lobby-layout">
+          <div className="lobby-main">
+            <p className="eyebrow">{translate(locale, 'lobby.loading.eyebrow')}</p>
+            <h1>{translate(locale, 'lobby.loading.title')}</h1>
+            <p>{translate(locale, 'common.states.loading')}</p>
+          </div>
+        </section>
+      </main>
+    )
+  }
+
+  if (detailState.status === 'notFound') {
+    return (
+      <main className="page lobby-page" data-testid="game-detail-not-found">
         <section className="lobby-layout">
           <div className="lobby-main">
             <p className="eyebrow">{translate(locale, 'lobby.notFound.eyebrow')}</p>
-            <h1>{translate(locale, 'lobby.notFound.title')}</h1>
+            <h1>{translate(locale, detailState.errorKey)}</h1>
             <Link className="primary-action" to="/" data-testid="lobby-return-main">
               {translate(locale, 'common.actions.returnToMainLobby')}
             </Link>
@@ -310,8 +334,27 @@ function GameLobbyPage({ games, locale }: { games: Game[]; locale: SupportedLoca
     )
   }
 
+  if (detailState.status === 'error') {
+    return (
+      <main className="page lobby-page" data-testid="game-detail-error">
+        <section className="lobby-layout">
+          <div className="lobby-main">
+            <p className="eyebrow">{translate(locale, 'lobby.error.eyebrow')}</p>
+            <h1>{translate(locale, detailState.errorKey)}</h1>
+            <p>{translate(locale, 'lobby.error.title')}</p>
+            <Link className="primary-action" to="/" data-testid="lobby-return-main">
+              {translate(locale, 'common.actions.returnToMainLobby')}
+            </Link>
+          </div>
+        </section>
+      </main>
+    )
+  }
+
+  const { game } = detailState
+
   return (
-    <main className="page lobby-page">
+    <main className="page lobby-page" data-testid="game-detail-ready">
       <section className="breadcrumb-row">
         <Link to="/">{translate(locale, 'common.surfaces.mainLobby')}</Link>
         <span>{translate(locale, 'navigation.breadcrumbs.separator')}</span>
@@ -481,7 +524,111 @@ function useGameCatalog(locale: SupportedLocale) {
   return {
     games: remoteCatalog?.locale === locale ? remoteCatalog.games : [],
     source: 'liveService' as CatalogSource,
-    errorKey: loadError ? 'catalog.source.liveCatalogError' : null,
+    errorKey: loadError ? 'errors.catalog.loadFailed' : null,
+  }
+}
+
+function useGameDetail(slug: string | undefined, locale: SupportedLocale): GameDetailState {
+  const [detailState, setDetailState] = useState<GameDetailState>({
+    status: 'loading',
+    game: null,
+    errorKey: null,
+  })
+
+  useEffect(() => {
+    if (!slug) {
+      setDetailState({
+        status: 'notFound',
+        game: null,
+        errorKey: 'errors.catalog.gameNotFound',
+      })
+      return
+    }
+
+    const controller = new AbortController()
+
+    setDetailState({
+      status: 'loading',
+      game: null,
+      errorKey: null,
+    })
+
+    const loadGame = async () => {
+      try {
+        const response = await fetch(`${apiBaseUrl}/games/${encodeURIComponent(slug)}`, {
+          signal: controller.signal,
+        })
+
+        if (response.status === 404) {
+          const errorResponse = await parseCatalogErrorResponse(response)
+
+          if (errorResponse?.code === 'CATALOG_GAME_NOT_FOUND') {
+            setDetailState({
+              status: 'notFound',
+              game: null,
+              errorKey: 'errors.catalog.gameNotFound',
+            })
+          } else {
+            setDetailState({
+              status: 'error',
+              game: null,
+              errorKey: 'errors.common.unknown',
+            })
+          }
+
+          return
+        }
+
+        if (!response.ok) {
+          setDetailState({
+            status: 'error',
+            game: null,
+            errorKey: 'errors.common.unknown',
+          })
+          return
+        }
+
+        const payload = (await response.json()) as RemoteCatalogGame
+        const game = mergeRemoteCatalogGameWithLocale(payload, locale)
+
+        if (!game) {
+          setDetailState({
+            status: 'error',
+            game: null,
+            errorKey: 'errors.common.unknown',
+          })
+          return
+        }
+
+        setDetailState({
+          status: 'ready',
+          game,
+          errorKey: null,
+        })
+      } catch {
+        if (!controller.signal.aborted) {
+          setDetailState({
+            status: 'error',
+            game: null,
+            errorKey: 'errors.catalog.loadFailed',
+          })
+        }
+      }
+    }
+
+    void loadGame()
+
+    return () => controller.abort()
+  }, [locale, slug])
+
+  return detailState
+}
+
+async function parseCatalogErrorResponse(response: Response): Promise<CatalogErrorResponse | null> {
+  try {
+    return (await response.json()) as CatalogErrorResponse
+  } catch {
+    return null
   }
 }
 

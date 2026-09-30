@@ -27,23 +27,31 @@ Start here:
 - `games/prototypes/flight-sim` -> 3D preview prototype, reference only, not a production simulation path
 - `services/_deprecated/lobby-server` -> deprecated prototype, not part of the default platform runtime
 
-## Current Build
+## Developer Quick Start
 
 ```bash
-npm run build
+npm ci
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres redis nats gateway web platform-api
+npm run db:prepare
 ```
 
-## Current Dev Commands
+Open `http://localhost:8080` after the stack is up.
+
+## Core Commands
 
 ```bash
-npm run dev
 npm run build
 npm run lint
+npm run validate
 npm run test
-npm run docker:up
+npm run test:integration
+npm run test:e2e
+npm run db:generate
+npm run db:status
+npm run db:migrate
+npm run db:seed
+npm run db:prepare
 npm run docker:down
-npm run docker:logs
-npm run docker:reset
 ```
 
 Prototype inspection commands remain available but are not part of the default platform development flow.

@@ -12,5 +12,13 @@
     "clientLaunch": "השקת לקוח",
     "runtime": "Runtime",
     "serverFocus": "מוקד שרת"
+  },
+  "loading": {
+    "eyebrow": "טוען לובי",
+    "title": "טוען את פרטי לובי המשחק."
+  },
+  "error": {
+    "eyebrow": "הקטלוג אינו זמין",
+    "title": "לא ניתן לטעון כעת את לובי המשחק."
   }
 }

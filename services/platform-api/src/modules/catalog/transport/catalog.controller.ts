@@ -1,11 +1,17 @@
-import { Controller, Get, Param } from '@nestjs/common'
+import { Controller, Get, Inject, Param } from '@nestjs/common'
 import type { CatalogGameResponse, CatalogListResponse } from '@game-center/contracts'
 
 import { CatalogService } from '../application/catalog.service.js'
 
 @Controller()
 export class CatalogController {
-  constructor(private readonly catalogService: CatalogService) {}
+  private readonly catalogService: CatalogService
+
+  constructor(@Inject(CatalogService) catalogService: CatalogService) {
+    this.catalogService = catalogService
+    this.listGames = this.listGames.bind(this)
+    this.getGameBySlug = this.getGameBySlug.bind(this)
+  }
 
   @Get('games')
   listGames(): Promise<CatalogListResponse> {

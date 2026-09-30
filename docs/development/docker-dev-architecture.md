@@ -87,6 +87,14 @@ Current platform API DEV loop:
 - `tsc --watch` with polling for Docker Desktop bind-mount reliability on Windows
 - `nodemon` watching compiled `dist/**/*.js` for runtime restarts
 
+Database behavior in DEV:
+
+- `docker compose up` and `npm run docker:dev` start infrastructure and service containers only.
+- DEV does not auto-generate migrations on container startup.
+- Catalog schema changes are applied only through committed migrations with `npm run db:migrate` or `npm run db:prepare`.
+- Catalog reference data is applied explicitly with `npm run db:seed` or `npm run db:prepare`.
+- Forward-only committed migrations are acceptable on DEV startup only when triggered explicitly by the developer, not as an implicit side effect of `docker compose up`.
+
 Gateway routing notes:
 
 - Traefik uses a static file provider for stability on this Windows Docker Desktop setup
@@ -127,6 +135,30 @@ platform-api
 
 web
   can start independently, but API functionality depends on gateway-routed services
+```
+
+## Fresh Clone Flow
+
+```text
+git clone
+↓
+npm ci
+↓
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres redis nats gateway web platform-api
+↓
+npm run db:prepare
+↓
+open http://localhost:8080
+```
+
+## Existing Database Flow
+
+```text
+pull latest changes
+↓
+npm run db:migrate
+↓
+continue development
 ```
 
 ## Initial Container Set

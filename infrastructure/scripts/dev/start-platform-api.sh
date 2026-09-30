@@ -3,8 +3,6 @@ set -eu
 
 cd /workspace
 
-npm run db:migrate
-npm run db:seed
 npm --workspace @game-center/platform-api run build
 npx tsc -p services/platform-api/tsconfig.json --watch --preserveWatchOutput --watchFile fixedpollinginterval --watchDirectory fixedpollinginterval &
 typescript_watch_pid=$!

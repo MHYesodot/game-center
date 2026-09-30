@@ -83,6 +83,12 @@ export type CatalogListResponse = {
 
 export type CatalogGameResponse = GameDefinition
 
+export type CatalogErrorCode = 'CATALOG_GAME_NOT_FOUND'
+
+export type CatalogErrorResponse = {
+  code: CatalogErrorCode
+}
+
 export type CatalogGameManifest = {
   gameId: string
   slug: string

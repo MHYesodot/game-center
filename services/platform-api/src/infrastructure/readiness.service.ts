@@ -1,9 +1,9 @@
 import { Inject, Injectable, OnApplicationShutdown } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { connect } from 'nats'
-import { Pool } from 'pg'
 import { createClient } from 'redis'
 
+import { createManagedPostgresPool } from './database.providers.js'
 import { NATS, POSTGRES, REDIS } from './infrastructure.tokens.js'
 
 type PostgresReadinessClient = {
@@ -89,7 +89,7 @@ export const postgresProvider = {
   useFactory: (configService: ConfigService) =>
     shouldUseTestDouble(configService, 'POSTGRES_URL')
       ? createPostgresTestClient()
-      : new Pool({ connectionString: configService.getOrThrow<string>('POSTGRES_URL') }),
+      : createManagedPostgresPool(configService.getOrThrow<string>('POSTGRES_URL')),
 }
 
 export const redisProvider = {

@@ -7,7 +7,7 @@ import { Pool } from 'pg'
 
 import type { CatalogGame } from '../../domain/catalog-game.js'
 
-import { catalogSeedGames } from './catalog.seed-data.js'
+import { catalogReferenceGames } from './catalog.reference-data.js'
 import {
   catalogGameCapabilities,
   catalogGameDistributionMetadata,
@@ -44,17 +44,17 @@ export async function migrateCatalogDatabase(connectionString: string) {
   }
 }
 
-export async function seedCatalogDatabase(connectionString: string) {
+export async function seedCatalogReferenceData(connectionString: string) {
   const pool = createCatalogPool(connectionString)
 
   try {
-    await seedCatalogDatabaseWithClient(createCatalogDatabase(pool))
+    await seedCatalogReferenceDataWithClient(createCatalogDatabase(pool))
   } finally {
     await pool.end()
   }
 }
 
-export async function seedCatalogDatabaseWithClient(db: CatalogDrizzleDatabase, games = catalogSeedGames) {
+export async function seedCatalogReferenceDataWithClient(db: CatalogDrizzleDatabase, games = catalogReferenceGames) {
   for (const game of games) {
     await upsertCatalogGame(db, game)
   }

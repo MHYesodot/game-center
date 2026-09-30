@@ -13,6 +13,9 @@
   "surfaces": {
     "mainLobby": "לובי ראשי"
   },
+  "states": {
+    "loading": "טוען..."
+  },
   "formats": {
     "categoryLobbies": "לובים של {category}"
   }
