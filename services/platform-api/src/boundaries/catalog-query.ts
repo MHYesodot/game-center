@@ -3,6 +3,8 @@ export type CatalogGameForLobby = {
   status: 'draft' | 'active' | 'retired'
   multiplayer: boolean
   privateRooms: boolean
+  gameVersion: string
+  protocolVersion: string
   platforms: {
     web: boolean
     windows: boolean

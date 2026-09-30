@@ -15,6 +15,13 @@
       "when": 1790766229368,
       "tag": "0001_aromatic_mathemanic",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790800000000,
+      "tag": "0002_matchmaking_persistence_runtime",
+      "breakpoints": true
     }
   ]
 }

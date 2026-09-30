@@ -56,6 +56,16 @@ describe('quality validators', () => {
     expect(result.stderr).toContain('production game domain/rendering layers must not call platform HTTP APIs directly')
   })
 
+  it('rejects matchmaking boundary violations', () => {
+    const result = runValidator('validate-architecture.mjs', 'architecture-invalid-matchmaking-boundaries')
+
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('matchmaking domain layer must not depend on raw persistence or runtime clients')
+    expect(result.stderr).toContain('matchmaking application layer must not depend on raw persistence or runtime clients')
+    expect(result.stderr).toContain('matchmaking must use the catalog public boundary, not catalog persistence internals')
+    expect(result.stderr).toContain('matchmaking must not depend on lobby persistence internals')
+  })
+
   it('rejects raw design literals outside approved token files', () => {
     const result = runValidator('validate-design.mjs', 'design-invalid')
 

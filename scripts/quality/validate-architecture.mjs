@@ -347,6 +347,20 @@ for (const filePath of files) {
     }
 
     if (
+      normalizedFilePath.includes('/services/platform-api/src/modules/matchmaking/domain/') &&
+      /^(?:drizzle-orm(?:\/|$)|pg$|redis$)/.test(specifier)
+    ) {
+      violations.push(`${toRelative(filePath)} matchmaking domain layer must not depend on raw persistence or runtime clients: ${specifier}`)
+    }
+
+    if (
+      normalizedFilePath.includes('/services/platform-api/src/modules/matchmaking/application/') &&
+      /^(?:drizzle-orm(?:\/|$)|pg$|redis$)/.test(specifier)
+    ) {
+      violations.push(`${toRelative(filePath)} matchmaking application layer must not depend on raw persistence or runtime clients: ${specifier}`)
+    }
+
+    if (
       owner.scope === 'games' &&
       productionGamePathPattern.test(normalizedFilePath) &&
       normalizePath(specifier).includes('platform-api/src/')
@@ -388,6 +402,20 @@ for (const filePath of files) {
 
     if (normalizedFilePath.includes('/services/platform-api/src/modules/') && ownerModule && targetModule && ownerModule !== targetModule) {
       violations.push(`${toRelative(filePath)} platform modules must not import another module's internals: ${specifier}`)
+    }
+
+    if (
+      normalizedFilePath.includes('/services/platform-api/src/modules/matchmaking/') &&
+      normalizedResolved.includes('/services/platform-api/src/modules/catalog/infrastructure/')
+    ) {
+      violations.push(`${toRelative(filePath)} matchmaking must use the catalog public boundary, not catalog persistence internals: ${specifier}`)
+    }
+
+    if (
+      normalizedFilePath.includes('/services/platform-api/src/modules/matchmaking/') &&
+      normalizedResolved.includes('/services/platform-api/src/modules/lobby/infrastructure/')
+    ) {
+      violations.push(`${toRelative(filePath)} matchmaking must not depend on lobby persistence internals: ${specifier}`)
     }
 
     if (normalizedFilePath.includes('/services/platform-api/src/modules/') && normalizedFilePath.includes('/domain/')) {

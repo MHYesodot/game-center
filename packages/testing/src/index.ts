@@ -3,7 +3,6 @@ import type {
   GameServerAllocation,
   GameSession,
   LobbyDetails,
-  MatchmakingOverview,
 } from '@game-center/contracts'
 
 export function fixedIso(value = '2026-09-29T10:00:00Z') {
@@ -167,67 +166,6 @@ export function buildLobby(overrides: Partial<LobbyDetails> = {}): LobbyDetails 
       readyMemberIds: overrides.runtime?.readyMemberIds ?? base.runtime.readyMemberIds,
       members: overrides.runtime?.members ?? base.runtime.members,
     },
-  }
-}
-
-export function buildMatchmakingOverview(overrides: Partial<MatchmakingOverview> = {}): MatchmakingOverview {
-  const base: MatchmakingOverview = {
-    queues: [
-      {
-        queueId: 'queue-signal-grid-ranked',
-        gameId: 'signal-grid',
-        playlist: 'ranked-duel',
-        minPlayers: 2,
-        maxPlayers: 2,
-        teamSize: 1,
-        proposalTimeoutSeconds: 20,
-        ephemeralStore: 'redis',
-      },
-    ],
-    tickets: [
-      {
-        ticketId: 'ticket-signal-grid-ranked-1',
-        gameId: 'signal-grid',
-        queueId: 'queue-signal-grid-ranked',
-        playerIds: ['player-1', 'player-2'],
-        requestedAt: fixedIso(),
-        state: 'proposed',
-        lobbyId: 'lobby-signal-grid-1',
-        attributes: {},
-      },
-    ],
-    candidates: [],
-    proposals: [
-      {
-        proposalId: 'proposal-signal-grid-1',
-        queueId: 'queue-signal-grid-ranked',
-        ticketIds: ['ticket-signal-grid-ranked-1', 'ticket-rush-lane-1'],
-        acceptedTicketIds: ['ticket-signal-grid-ranked-1'],
-        expiresAt: fixedIso('2026-09-29T10:05:00Z'),
-        createdAt: fixedIso('2026-09-29T10:02:30Z'),
-      },
-    ],
-    matches: [
-      {
-        matchId: 'match-signal-grid-1',
-        gameId: 'signal-grid',
-        queueId: 'queue-signal-grid-ranked',
-        ticketIds: ['ticket-signal-grid-ranked-1'],
-        lobbyIds: ['lobby-signal-grid-1'],
-        state: 'allocating-session',
-        createdAt: fixedIso('2026-09-29T10:03:00Z'),
-      },
-    ],
-  }
-
-  return {
-    ...base,
-    ...overrides,
-    queues: overrides.queues ?? base.queues,
-    tickets: overrides.tickets ?? base.tickets,
-    candidates: overrides.candidates ?? base.candidates,
-    proposals: overrides.proposals ?? base.proposals,
-    matches: overrides.matches ?? base.matches,
   }
 }
 

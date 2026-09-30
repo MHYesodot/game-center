@@ -48,6 +48,8 @@ export class CatalogService implements CatalogQueryService {
       status: game.definition.status,
       multiplayer: game.activeVersion.capabilities.multiplayer,
       privateRooms: game.activeVersion.capabilities.privateRooms,
+      gameVersion: game.activeVersion.gameVersion,
+      protocolVersion: game.activeVersion.protocolVersion,
       platforms: {
         ...game.activeVersion.platforms,
       },

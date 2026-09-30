@@ -11,10 +11,10 @@ Status: Accepted source of truth for Foundation Slice 1.1 domain modeling
 | Social | Boundary placeholder | Friends, parties, and presence boundary only. No persistence work in this slice. |
 | Catalog | Active domain seed | Canonical game definitions, manifests, versions, and capabilities. |
 | Lobby | Active domain seed | Pre-session room lifecycle, members, readiness, visibility, and launch intent. |
-| Matchmaking | Active domain seed | Queue membership, ticket lifecycle, proposals, and match creation. |
+| Matchmaking | Active persisted domain | Durable matchmaking requests and proposals in PostgreSQL plus ephemeral queue runtime coordination in Redis. |
 | Sessions | Active domain seed | Session metadata, participant roster, connection handoff, result envelope, and game-server allocation orchestration. |
 
-The intent is explicit: Phase 1 keeps boundary shells only where the business capability is not yet active, while the gameplay-adjacent flow is modeled now as real domains. Catalog and Lobby are already persisted; Matchmaking and Sessions remain seed-only boundaries for later slices.
+The intent is explicit: Phase 1 keeps boundary shells only where the business capability is not yet active, while the gameplay-adjacent flow is modeled now as real domains. Catalog, Lobby, and Matchmaking are persisted; Sessions remains a seed boundary for later slices.
 
 ## Domain Separation Rules
 
@@ -92,31 +92,59 @@ The intent is explicit: Phase 1 keeps boundary shells only where the business ca
 
 ### Aggregates and Value Objects
 
-- `MatchmakingTicket`: the unit of demand entering matchmaking.
-- `MatchmakingQueue`: queue configuration for a game and playlist.
-- `MatchCandidate`: a scored candidate set of tickets before proposal.
-- `MatchProposal`: acceptance window for a candidate.
-- `Match`: durable record that a candidate became a launchable match.
+- `DurableMatchmakingRequest`: durable request owned by Matchmaking and persisted in PostgreSQL.
+- `DurableMatchProposal`: durable proposal aggregate root persisted in PostgreSQL.
+- `DurableMatchProposalMember`: durable acceptance member row persisted in PostgreSQL.
+- `MatchmakingQueueIdentity`: compatibility tuple composed from game, queue type, platform, region, game version, and protocol version.
+- `MatchQueuePolicy`: queue policy abstraction that defines match size and proposal timeout.
 
-### Ticket Lifecycle
+### Invariants
 
-`queued -> searching -> proposed -> matched`
+- A requester may own at most one active request in `queued` or `proposed` at a time.
+- Queue compatibility is determined only by the full queue identity tuple.
+- Proposal membership is durable and is the source of truth for accept, reject, timeout, and final match readiness.
+- Queue ordering and short-lived worker coordination are ephemeral and recoverable from durable state.
+- Matchmaking may depend on Catalog only through the public catalog query boundary.
+- Session persistence and game-server allocation remain out of scope for this slice; handoff stops at `MatchReadySink`.
+
+### Persistent vs Ephemeral
+
+- Persistent in PostgreSQL: matchmaking requests, proposal aggregates, proposal membership, request terminal outcome, proposal resolution timestamps, and durable compatibility tuple.
+- Ephemeral in Redis: active queue ordering, queue locks, proposal leases, runtime queue position, and recovery-time search coordination.
+- Derived: queue position, candidate counts, materialized expired request state on access, and match-ready payload projection.
+
+### Request Lifecycle
+
+`queued -> proposed -> matched`
 
 Exit states:
 
 - `cancelled`
 - `expired`
+- `failed`
+
+Additional recovery transition:
+
+- `proposed -> queued` when a proposal is rejected or expires.
+
+### Proposal Lifecycle
+
+`pending -> matched`
+
+Exit states:
+
+- `rejected`
+- `expired`
+- `cancelled`
+- `failed`
 
 ### Modeling Notes
 
-- Quick play should create temporary platform-managed matchmaking demand, not a full lobby first.
-- Party matchmaking may reference an existing lobby or party aggregate later, but the queue ticket remains the matchmaking-owned unit.
-- Matchmaking state is primarily ephemeral and coordination-heavy, so Redis is the expected backing store later.
-
-### Persistent vs Ephemeral
-
-- Ephemeral in Redis later: queues, active tickets, proposals, scoring windows.
-- Persistent later in PostgreSQL: accepted matches, operator audits, player-visible history if needed.
+- Quick play is the only concrete queue type in Slice 4.
+- Player requests are the only concrete requester type in Slice 4; party support remains behind the transport and domain abstractions.
+- Queue matching uses a strategy abstraction with FIFO as the initial concrete policy.
+- Redis loss must not lose durable request or proposal state; runtime queue entries are reconstructed from PostgreSQL on later access.
+- NATS is not part of the runtime-critical Matchmaking path in this slice because there is no real cross-boundary consumer yet.
 
 ## Sessions Domain
 

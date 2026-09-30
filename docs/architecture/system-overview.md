@@ -46,7 +46,7 @@ Current Slice 1.1 module classification:
 | Catalog | Active persisted domain | owns game definitions, manifest projections, version metadata, and capability discovery |
 | Social | Boundary placeholder | reserved boundary for parties, presence, and graph ownership |
 | Lobby | Active persisted domain | owns durable lobby lifecycle and membership in PostgreSQL plus ephemeral runtime readiness and presence in Redis |
-| Matchmaking | Active domain seed | now models queues, tickets, proposals, and match creation as in-memory seeds |
+| Matchmaking | Active persisted domain | owns durable matchmaking requests and proposals in PostgreSQL plus ephemeral Redis queue coordination |
 | Sessions | Active domain seed | now models session lifecycle and game-server allocation orchestration as in-memory seeds |
 
 Detailed invariants, state machines, event catalog, and ephemeral vs persistent ownership for these domains live in `docs/architecture/platform-domain-model.md`.
@@ -116,6 +116,15 @@ Default language and runtime choices are fixed unless an ADR approves an excepti
 - `GET /api/lobbies/:lobbyId` can return durable lobby state with an unavailable runtime projection when Redis is down.
 - Runtime-dependent actions such as ready and start degrade to semantic `503` responses with `LOBBY_UNAVAILABLE` during Redis outage.
 - Lobby reads Catalog only through the public catalog query boundary, not through catalog persistence internals.
+
+## Current Matchmaking Runtime
+
+- Matchmaking durable state is now served from PostgreSQL through repository ports owned by the `Matchmaking` module.
+- Matchmaking runtime state uses Redis only for ephemeral queue ordering, queue locks, proposal leases, and queue-position projection.
+- `GET /api/matchmaking/requests/:requestId` may still return durable request state with `runtime.available = false` when Redis is down.
+- Queue mutation paths degrade to semantic `503` responses with `MATCHMAKING_UNAVAILABLE` when PostgreSQL or Redis cannot support the command.
+- Matchmaking reads Catalog only through the public catalog query boundary and does not depend on Lobby or Session persistence internals.
+- Match readiness stops at an internal `MatchReadySink` boundary in this slice; session persistence and game-server allocation are intentionally not implemented yet.
 
 ## Target System Diagram
 

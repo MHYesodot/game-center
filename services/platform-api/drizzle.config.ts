@@ -5,6 +5,7 @@ export default defineConfig({
   schema: [
     './src/modules/catalog/infrastructure/persistence/schema/catalog.schema.ts',
     './src/modules/lobby/infrastructure/persistence/schema/lobby.schema.ts',
+    './src/modules/matchmaking/infrastructure/persistence/schema/matchmaking.schema.ts',
   ],
   out: './drizzle',
   dbCredentials: {
