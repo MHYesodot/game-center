@@ -83,7 +83,7 @@ export type CatalogListResponse = {
 
 export type CatalogGameResponse = GameDefinition
 
-export type CatalogErrorCode = 'CATALOG_GAME_NOT_FOUND'
+export type CatalogErrorCode = 'CATALOG_GAME_NOT_FOUND' | 'CATALOG_UNAVAILABLE'
 
 export type CatalogErrorResponse = {
   code: CatalogErrorCode

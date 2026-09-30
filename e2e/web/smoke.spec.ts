@@ -77,7 +77,7 @@ test('detail route shows an error state instead of fallback data when the catalo
   await page.goto('/game/signal-grid?locale=en')
 
   await expect(page.getByTestId('game-detail-error')).toBeVisible()
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('Something went wrong.')
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Unable to load live catalog.')
 })
 
 test('platform health endpoints respond successfully', async ({ request }) => {

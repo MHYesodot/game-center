@@ -66,12 +66,12 @@ Forbidden pattern:
 Platform API should return codes such as:
 
 ```json
-{ "code": "LOBBY_FULL" }
+{ "code": "CATALOG_UNAVAILABLE" }
 ```
 
 Clients then map the code to translation keys such as:
 
-`errors.lobby.full`
+`errors.catalog.loadFailed`
 
 ## Web Audit Classification
 

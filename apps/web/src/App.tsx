@@ -51,6 +51,22 @@ type Game = GameSeed & {
   serverFocus: string
 }
 
+function createLoadingDetailState(): GameDetailState {
+  return {
+    status: 'loading',
+    game: null,
+    errorKey: null,
+  }
+}
+
+function createNotFoundDetailState(): GameDetailState {
+  return {
+    status: 'notFound',
+    game: null,
+    errorKey: 'errors.catalog.gameNotFound',
+  }
+}
+
 const gameSeeds: GameSeed[] = [
   {
     gameId: 'signal-grid',
@@ -529,29 +545,18 @@ function useGameCatalog(locale: SupportedLocale) {
 }
 
 function useGameDetail(slug: string | undefined, locale: SupportedLocale): GameDetailState {
-  const [detailState, setDetailState] = useState<GameDetailState>({
-    status: 'loading',
-    game: null,
-    errorKey: null,
-  })
+  const [detailState, setDetailState] = useState<{
+    locale: SupportedLocale
+    slug: string | undefined
+    state: GameDetailState
+  }>(slug ? { locale, slug, state: createLoadingDetailState() } : { locale, slug, state: createNotFoundDetailState() })
 
   useEffect(() => {
     if (!slug) {
-      setDetailState({
-        status: 'notFound',
-        game: null,
-        errorKey: 'errors.catalog.gameNotFound',
-      })
       return
     }
 
     const controller = new AbortController()
-
-    setDetailState({
-      status: 'loading',
-      game: null,
-      errorKey: null,
-    })
 
     const loadGame = async () => {
       try {
@@ -564,15 +569,19 @@ function useGameDetail(slug: string | undefined, locale: SupportedLocale): GameD
 
           if (errorResponse?.code === 'CATALOG_GAME_NOT_FOUND') {
             setDetailState({
-              status: 'notFound',
-              game: null,
-              errorKey: 'errors.catalog.gameNotFound',
+              locale,
+              slug,
+              state: createNotFoundDetailState(),
             })
           } else {
             setDetailState({
-              status: 'error',
-              game: null,
-              errorKey: 'errors.common.unknown',
+              locale,
+              slug,
+              state: {
+                status: 'error',
+                game: null,
+                errorKey: 'errors.common.unknown',
+              },
             })
           }
 
@@ -580,10 +589,16 @@ function useGameDetail(slug: string | undefined, locale: SupportedLocale): GameD
         }
 
         if (!response.ok) {
+          const errorResponse = await parseCatalogErrorResponse(response)
+
           setDetailState({
-            status: 'error',
-            game: null,
-            errorKey: 'errors.common.unknown',
+            locale,
+            slug,
+            state: {
+              status: 'error',
+              game: null,
+              errorKey: errorResponse?.code === 'CATALOG_UNAVAILABLE' ? 'errors.catalog.loadFailed' : 'errors.common.unknown',
+            },
           })
           return
         }
@@ -593,24 +608,36 @@ function useGameDetail(slug: string | undefined, locale: SupportedLocale): GameD
 
         if (!game) {
           setDetailState({
-            status: 'error',
-            game: null,
-            errorKey: 'errors.common.unknown',
+            locale,
+            slug,
+            state: {
+              status: 'error',
+              game: null,
+              errorKey: 'errors.common.unknown',
+            },
           })
           return
         }
 
         setDetailState({
-          status: 'ready',
-          game,
-          errorKey: null,
+          locale,
+          slug,
+          state: {
+            status: 'ready',
+            game,
+            errorKey: null,
+          },
         })
       } catch {
         if (!controller.signal.aborted) {
           setDetailState({
-            status: 'error',
-            game: null,
-            errorKey: 'errors.catalog.loadFailed',
+            locale,
+            slug,
+            state: {
+              status: 'error',
+              game: null,
+              errorKey: 'errors.catalog.loadFailed',
+            },
           })
         }
       }
@@ -621,7 +648,15 @@ function useGameDetail(slug: string | undefined, locale: SupportedLocale): GameD
     return () => controller.abort()
   }, [locale, slug])
 
-  return detailState
+  if (!slug) {
+    return createNotFoundDetailState()
+  }
+
+  if (detailState.slug !== slug || detailState.locale !== locale) {
+    return createLoadingDetailState()
+  }
+
+  return detailState.state
 }
 
 async function parseCatalogErrorResponse(response: Response): Promise<CatalogErrorResponse | null> {

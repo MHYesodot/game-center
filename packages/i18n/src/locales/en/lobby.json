@@ -1,7 +1,6 @@
 {
   "notFound": {
-    "eyebrow": "Lobby not found",
-    "title": "This game lobby is not in the active catalog."
+    "eyebrow": "Lobby not found"
   },
   "detail": {
     "eyebrow": "{category} game lobby",

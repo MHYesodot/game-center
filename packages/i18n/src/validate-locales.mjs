@@ -6,6 +6,7 @@ import ts from 'typescript'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const localesRoot = path.join(__dirname, 'locales')
+const reservedKeysFile = path.join(__dirname, 'reserved-translation-keys.json')
 const workspaceRoot = path.resolve(__dirname, '..', '..', '..')
 const requiredLocales = ['en', 'he']
 const codeFilePattern = /\.(?:[cm]?[jt]sx?)$/
@@ -21,6 +22,17 @@ const ignoredDirectories = new Set([
   'test-results',
 ])
 const ignoredPathFragments = ['/packages/i18n/src/locales/', '/scripts/quality/fixtures/']
+
+function readReservedKeys() {
+  if (!fs.existsSync(reservedKeysFile)) {
+    return new Set()
+  }
+
+  const content = JSON.parse(fs.readFileSync(reservedKeysFile, 'utf8'))
+  const reservedKeys = Array.isArray(content.reservedKeys) ? content.reservedKeys : []
+
+  return new Set(reservedKeys)
+}
 
 function listNamespaceFiles(locale) {
   const localeDir = path.join(localesRoot, locale)
@@ -221,11 +233,26 @@ function collectReferencedTranslationKeys() {
         }
       }
 
+      if (ts.isVariableDeclaration(node)) {
+        const variableName = ts.isIdentifier(node.name) ? node.name.text : ''
+
+        if (variableName.includes('Key') && node.initializer && ts.isObjectLiteralExpression(node.initializer)) {
+          for (const property of node.initializer.properties) {
+            if (
+              ts.isPropertyAssignment(property) &&
+              (ts.isStringLiteral(property.initializer) || ts.isNoSubstitutionTemplateLiteral(property.initializer))
+            ) {
+              maybeAddKey(property.initializer.text)
+            }
+          }
+        }
+      }
+
       if (ts.isPropertyAssignment(node)) {
         const propertyName = node.name.getText(sourceFile).replace(/['"]/g, '')
 
         if (
-          /(?:^|[A-Z])(displayNameKey|descriptionKey|taglineKey|playerRangeKey|sessionModesKey|techStackKey|lobbyThemeKey|clientSurfaceKey|serverFocusKey|categoryKey)$/.test(
+          /(?:^|[A-Z])(displayNameKey|descriptionKey|taglineKey|playerRangeKey|sessionModesKey|techStackKey|lobbyThemeKey|clientSurfaceKey|serverFocusKey|categoryKey|errorKey)$/.test(
             propertyName,
           ) &&
           (ts.isStringLiteral(node.initializer) || ts.isNoSubstitutionTemplateLiteral(node.initializer))
@@ -279,8 +306,11 @@ for (const locale of requiredLocales) {
 }
 
 const referencedKeys = collectReferencedTranslationKeys()
+const reservedKeys = readReservedKeys()
 const missingReferencedKeys = [...referencedKeys].filter((key) => !translationKeys.has(key)).sort()
-const orphanedKeys = [...translationKeys].filter((key) => !referencedKeys.has(key)).sort()
+const orphanedKeys = [...translationKeys]
+  .filter((key) => !referencedKeys.has(key) && !reservedKeys.has(key))
+  .sort()
 
 if (missingReferencedKeys.length > 0) {
   throw new Error(`Referenced translation keys are missing from locale bundles: ${missingReferencedKeys.join(', ')}`)

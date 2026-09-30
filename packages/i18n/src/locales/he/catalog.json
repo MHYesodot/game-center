@@ -1,9 +1,7 @@
 {
   "source": {
     "label": "קטלוג: {source}",
-    "liveService": "שירות חי",
-    "localPreview": "תצוגה מקומית",
-    "liveCatalogError": "לא ניתן היה לטעון את הקטלוג החי"
+    "liveService": "שירות חי"
   },
   "hero": {
     "eyebrow": "פלטפורמה אחודה. לקוחות משחק ייעודיים.",

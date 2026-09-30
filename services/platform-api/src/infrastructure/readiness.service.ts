@@ -4,6 +4,7 @@ import { connect } from 'nats'
 import { createClient } from 'redis'
 
 import { createManagedPostgresPool } from './database.providers.js'
+import { type DependencyName, type DependencyState, type DependencyStatuses, logDependencyDown } from './dependency-health.js'
 import { NATS, POSTGRES, REDIS } from './infrastructure.tokens.js'
 
 type PostgresReadinessClient = {
@@ -62,15 +63,17 @@ export class ReadinessService implements OnApplicationShutdown {
     @Inject(NATS) private readonly nats: NatsReadinessClient,
   ) {}
 
-  async readiness() {
-    await this.postgres.query('select 1')
-    await this.redis.ping()
-    await this.nats.flush()
+  async readiness(): Promise<DependencyStatuses> {
+    const [postgres, redis, nats] = await Promise.all([
+      this.checkDependency('postgres', () => this.postgres.query('select 1')),
+      this.checkDependency('redis', () => this.redis.ping()),
+      this.checkDependency('nats', () => this.nats.flush()),
+    ])
 
     return {
-      postgres: 'up',
-      redis: 'up',
-      nats: 'up',
+      postgres,
+      redis,
+      nats,
     }
   }
 
@@ -80,6 +83,16 @@ export class ReadinessService implements OnApplicationShutdown {
       this.redis.quit(),
       this.nats.drain(),
     ])
+  }
+
+  private async checkDependency(dependency: DependencyName, probe: () => Promise<unknown>): Promise<DependencyState> {
+    try {
+      await probe()
+      return 'up'
+    } catch (error) {
+      logDependencyDown(dependency, error, 'ReadinessService')
+      return 'down'
+    }
   }
 }
 

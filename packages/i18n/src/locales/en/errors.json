@@ -5,8 +5,5 @@
   "catalog": {
     "loadFailed": "Unable to load live catalog.",
     "gameNotFound": "This game is not in the active catalog."
-  },
-  "lobby": {
-    "full": "The lobby is full."
   }
 }
