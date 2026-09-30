@@ -1,49 +1,69 @@
 import { describe, expect, it } from 'vitest'
 import { buildLobby } from '@game-center/testing'
 
-import { countActiveLobbyMembers, countReadyLobbyMembers, isLobbyReadyForAllocation } from './lobby-record.js'
+import {
+  getActiveLobbyMembers,
+  getAvailableSeats,
+  getDeterministicOwnerSuccessor,
+  isLobbyExpired,
+  materializeLobbyStatus,
+} from './lobby-record.js'
 
 describe('lobby domain helpers', () => {
-  it('counts only non-spectator members as active', () => {
+  it('counts only members without leftAt as active', () => {
     const lobby = buildLobby({
       members: [
         ...buildLobby().members,
         {
           playerId: 'player-3',
-          displayName: 'Observer Ivo',
-          role: 'spectator',
-          readyState: 'pending',
+          role: 'member',
           joinedAt: new Date('2026-09-29T10:03:00Z').toISOString(),
+          leftAt: new Date('2026-09-29T10:04:00Z').toISOString(),
         },
       ],
     })
 
-    expect(countActiveLobbyMembers(lobby)).toBe(2)
+    expect(getActiveLobbyMembers(lobby)).toHaveLength(2)
   })
 
-  it('counts only ready non-spectator members', () => {
+  it('calculates available seats from active durable members', () => {
+    expect(getAvailableSeats(buildLobby())).toBe(2)
+  })
+
+  it('selects the oldest active durable member as the owner successor', () => {
     const lobby = buildLobby({
       members: [
-        buildLobby().members[0],
         {
-          ...buildLobby().members[1],
-          readyState: 'pending',
+          playerId: 'player-1',
+          role: 'owner',
+          joinedAt: new Date('2026-09-29T10:00:00Z').toISOString(),
+          leftAt: null,
+        },
+        {
+          playerId: 'player-2',
+          role: 'member',
+          joinedAt: new Date('2026-09-29T10:01:00Z').toISOString(),
+          leftAt: null,
+        },
+        {
+          playerId: 'player-3',
+          role: 'member',
+          joinedAt: new Date('2026-09-29T10:02:00Z').toISOString(),
+          leftAt: null,
         },
       ],
     })
 
-    expect(countReadyLobbyMembers(lobby)).toBe(1)
+    expect(getDeterministicOwnerSuccessor(lobby, 'player-1')?.playerId).toBe('player-2')
   })
 
-  it('requires player count and readiness to be satisfied before allocation', () => {
-    expect(isLobbyReadyForAllocation(buildLobby())).toBe(true)
+  it('materializes expired open lobbies without boolean flag soup', () => {
+    const lobby = buildLobby({
+      expiresAt: new Date('2026-09-29T10:30:00Z').toISOString(),
+      status: 'open',
+    })
 
-    expect(
-      isLobbyReadyForAllocation(
-        buildLobby({
-          members: [buildLobby().members[0]],
-        }),
-      ),
-    ).toBe(false)
+    expect(isLobbyExpired(lobby, new Date('2026-09-29T10:31:00Z').toISOString())).toBe(true)
+    expect(materializeLobbyStatus(lobby, new Date('2026-09-29T10:31:00Z').toISOString())).toBe('expired')
   })
 })

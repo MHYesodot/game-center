@@ -2,7 +2,7 @@ import type {
   GameDefinition,
   GameServerAllocation,
   GameSession,
-  Lobby,
+  LobbyDetails,
   MatchmakingOverview,
 } from '@game-center/contracts'
 
@@ -92,53 +92,81 @@ export function buildCatalogGame(overrides: Partial<GameDefinition> = {}): GameD
   }
 }
 
-export function buildLobby(overrides: Partial<Lobby> = {}): Lobby {
-  const base: Lobby = {
+export function buildLobby(overrides: Partial<LobbyDetails> = {}): LobbyDetails {
+  const base: LobbyDetails = {
     lobbyId: 'lobby-signal-grid-1',
     gameId: 'signal-grid',
     ownerPlayerId: 'player-1',
-    state: 'ready-check',
-    settings: {
-      visibility: 'public',
-      minPlayers: 2,
-      maxPlayers: 4,
-      allowSpectators: true,
-      isRanked: true,
-      region: 'dev-local',
-      customSettings: {},
+    status: 'open',
+    visibility: 'public',
+    capacity: 4,
+    minimumPlayers: 2,
+    configuration: {
+      schemaVersion: 'v1',
+      settings: {
+        boardSize: 'standard',
+      },
     },
     members: [
       {
         playerId: 'player-1',
-        displayName: 'Commander Vega',
-        role: 'host',
-        readyState: 'ready',
+        role: 'owner',
         joinedAt: fixedIso(),
+        leftAt: null,
       },
       {
         playerId: 'player-2',
-        displayName: 'Analyst Noor',
         role: 'member',
-        readyState: 'ready',
         joinedAt: fixedIso('2026-09-29T10:01:00Z'),
+        leftAt: null,
       },
     ],
+    runtime: {
+      available: true,
+      connectedMemberCount: 2,
+      allMembersReady: true,
+      readyMemberIds: ['player-1', 'player-2'],
+      members: [
+        {
+          playerId: 'player-1',
+          connectionState: 'connected',
+          ready: true,
+          lastSeenAt: fixedIso('2026-09-29T10:02:00Z'),
+          reconnectDeadlineAt: null,
+        },
+        {
+          playerId: 'player-2',
+          connectionState: 'connected',
+          ready: true,
+          lastSeenAt: fixedIso('2026-09-29T10:02:00Z'),
+          reconnectDeadlineAt: null,
+        },
+      ],
+    },
     createdAt: fixedIso(),
     updatedAt: fixedIso('2026-09-29T10:02:00Z'),
+    closedAt: null,
+    expiresAt: fixedIso('2026-09-29T10:30:00Z'),
   }
 
   return {
     ...base,
     ...overrides,
-    settings: {
-      ...base.settings,
-      ...overrides.settings,
-      customSettings: {
-        ...base.settings.customSettings,
-        ...overrides.settings?.customSettings,
+    configuration: {
+      ...base.configuration,
+      ...overrides.configuration,
+      settings: {
+        ...base.configuration.settings,
+        ...overrides.configuration?.settings,
       },
     },
     members: overrides.members ?? base.members,
+    runtime: {
+      ...base.runtime,
+      ...overrides.runtime,
+      readyMemberIds: overrides.runtime?.readyMemberIds ?? base.runtime.readyMemberIds,
+      members: overrides.runtime?.members ?? base.runtime.members,
+    },
   }
 }
 

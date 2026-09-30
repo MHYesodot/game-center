@@ -162,6 +162,12 @@ export class InMemoryCatalogRepository implements CatalogRepository {
     return games.map((game) => toCatalogGame(game))
   }
 
+  async getGameById(gameId: string): Promise<CatalogGame | null> {
+    const game = games.find((entry) => entry.gameId === gameId)
+
+    return game ? toCatalogGame(game) : null
+  }
+
   async getGameBySlug(slug: string): Promise<CatalogGame | null> {
     const game = games.find((entry) => entry.slug === slug)
 

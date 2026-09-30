@@ -26,6 +26,12 @@ export class PostgresCatalogRepository implements CatalogRepository {
     return rows.map((row) => mapCatalogGameRecordToDomain(row))
   }
 
+  async getGameById(gameId: string): Promise<CatalogGame | null> {
+    const [row] = await this.baseQuery(eq(catalogGames.gameId, gameId), 1)
+
+    return row ? mapCatalogGameRecordToDomain(row) : null
+  }
+
   async getGameBySlug(slug: string): Promise<CatalogGame | null> {
     const [row] = await this.baseQuery(eq(catalogGames.slug, slug), 1)
 

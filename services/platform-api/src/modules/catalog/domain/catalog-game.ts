@@ -45,6 +45,7 @@ export type CatalogGame = {
 
 export interface CatalogRepository {
 	listGames(): Promise<CatalogGame[]>
+	getGameById(gameId: string): Promise<CatalogGame | null>
 	getGameBySlug(slug: string): Promise<CatalogGame | null>
 }
 

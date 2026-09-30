@@ -1,71 +1,106 @@
-export type LobbyVisibility = 'public' | 'private' | 'friends-only' | 'invite-only'
+export type LobbyVisibility = 'public' | 'private'
 
-export type LobbyRole = 'host' | 'member' | 'spectator'
+export type LobbyStatus = 'open' | 'starting' | 'started' | 'closed' | 'expired'
 
-export type ReadyState = 'pending' | 'ready' | 'not-ready'
+export type LobbyMemberRole = 'owner' | 'member'
 
-export type LobbyState =
-  | 'forming'
-  | 'open'
-  | 'ready-check'
-  | 'allocated'
-  | 'in-session'
-  | 'closing'
-  | 'closed'
+export type LobbyConnectionState = 'connected' | 'disconnected' | 'reconnecting'
 
-export type LobbySettings = {
-  visibility: LobbyVisibility
-  minPlayers: number
-  maxPlayers: number
-  allowSpectators: boolean
-  isRanked: boolean
-  region?: string
-  customSettings: Record<string, string | number | boolean>
+export type LobbyConfigurationValue = string | number | boolean
+
+export type LobbyConfiguration = {
+  schemaVersion: string
+  settings: Record<string, LobbyConfigurationValue>
 }
 
-export type LobbyMember = {
+export type LobbyMemberSummary = {
   playerId: string
-  displayName: string
-  role: LobbyRole
-  readyState: ReadyState
+  role: LobbyMemberRole
   joinedAt: string
-  seatIndex?: number
+  leftAt: string | null
 }
 
-export type Lobby = {
-  lobbyId: string
-  gameId: string
-  ownerPlayerId: string
-  state: LobbyState
-  settings: LobbySettings
-  members: LobbyMember[]
-  createdAt: string
-  updatedAt: string
-  matchmakingTicketId?: string
-  sessionId?: string
+export type LobbyMemberRuntimeState = {
+  playerId: string
+  connectionState: LobbyConnectionState
+  ready: boolean
+  lastSeenAt: string | null
+  reconnectDeadlineAt: string | null
+}
+
+export type LobbyRuntimeState = {
+  available: boolean
+  connectedMemberCount: number
+  allMembersReady: boolean
+  readyMemberIds: string[]
+  members: LobbyMemberRuntimeState[]
 }
 
 export type LobbySummary = {
   lobbyId: string
   gameId: string
-  state: LobbyState
+  ownerPlayerId: string
+  status: LobbyStatus
   visibility: LobbyVisibility
-  memberCount: number
-  maxPlayers: number
+  capacity: number
+  minimumPlayers: number
+  activeMemberCount: number
+  availableSeats: number
   createdAt: string
+  updatedAt: string
+  expiresAt: string | null
 }
 
-export type LobbyPlayer = {
-  playerId: string
-  displayName: string
+export type LobbyDetails = {
+  lobbyId: string
+  gameId: string
+  ownerPlayerId: string
+  status: LobbyStatus
+  visibility: LobbyVisibility
+  capacity: number
+  minimumPlayers: number
+  configuration: LobbyConfiguration
+  members: LobbyMemberSummary[]
+  runtime: LobbyRuntimeState
+  createdAt: string
+  updatedAt: string
+  closedAt: string | null
+  expiresAt: string | null
+}
+
+export type CreateLobbyRequest = {
+  gameId: string
+  visibility: LobbyVisibility
+  capacity: number
+  minimumPlayers: number
+  configuration: LobbyConfiguration
+  joinCode?: string
+}
+
+export type JoinLobbyRequest = {
+  joinCode?: string
+}
+
+export type SetLobbyReadyRequest = {
   ready: boolean
 }
 
-export type LobbyRecord = {
-  lobbyId: string
-  gameId: string
-  state: 'open' | 'full' | 'ready' | 'matching' | 'closed'
-  players: LobbyPlayer[]
-  maxPlayers: number
-  createdAt: string
+export type LobbyErrorCode =
+  | 'LOBBY_NOT_FOUND'
+  | 'LOBBY_FULL'
+  | 'LOBBY_CLOSED'
+  | 'NOT_LOBBY_MEMBER'
+  | 'NOT_LOBBY_OWNER'
+  | 'INVALID_LOBBY_STATE'
+  | 'PLAYER_NOT_READY'
+  | 'LOBBY_NOT_READY'
+  | 'LOBBY_UNAVAILABLE'
+  | 'GAME_NOT_FOUND'
+  | 'INVALID_GAME_CONFIGURATION'
+  | 'INVALID_JOIN_CODE'
+  | 'PRIVATE_LOBBY_ACCESS_DENIED'
+  | 'INVALID_PLAYER_ID'
+
+export type LobbyErrorResponse = {
+  code: LobbyErrorCode
 }

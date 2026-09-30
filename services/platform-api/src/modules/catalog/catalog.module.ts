@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import type { Pool } from 'pg'
 
+import { CATALOG_QUERY_SERVICE } from '../../boundaries/catalog-query.js'
 import { CatalogService } from './application/catalog.service.js'
 import { CatalogController } from './transport/catalog.controller.js'
 import { CATALOG_REPOSITORY } from './domain/catalog-game.js'
@@ -26,6 +27,11 @@ import * as catalogSchema from './infrastructure/persistence/schema/catalog.sche
       provide: CATALOG_REPOSITORY,
       useExisting: PostgresCatalogRepository,
     },
+    {
+      provide: CATALOG_QUERY_SERVICE,
+      useExisting: CatalogService,
+    },
   ],
+  exports: [CATALOG_QUERY_SERVICE],
 })
 export class CatalogModule {}

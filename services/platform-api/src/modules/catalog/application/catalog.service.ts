@@ -1,6 +1,7 @@
 import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common'
 import type { CatalogErrorResponse, CatalogGameResponse, CatalogListResponse } from '@game-center/contracts'
 
+import type { CatalogGameForLobby, CatalogQueryService } from '../../../boundaries/catalog-query.js'
 import { isPostgresDependencyError, logDependencyDown } from '../../../infrastructure/dependency-health.js'
 
 import {
@@ -10,7 +11,7 @@ import {
 } from '../domain/catalog-game.js'
 
 @Injectable()
-export class CatalogService {
+export class CatalogService implements CatalogQueryService {
   constructor(@Inject(CATALOG_REPOSITORY) private readonly catalogRepository: CatalogRepository) {}
 
   async listGames(): Promise<CatalogListResponse> {
@@ -33,6 +34,24 @@ export class CatalogService {
     }
 
     return toCatalogGameResponse(game)
+  }
+
+  async getGameById(gameId: string): Promise<CatalogGameForLobby | null> {
+    const game = await this.readCatalogOrThrowUnavailable(() => this.catalogRepository.getGameById(gameId))
+
+    if (!game) {
+      return null
+    }
+
+    return {
+      gameId: game.definition.gameId,
+      status: game.definition.status,
+      multiplayer: game.activeVersion.capabilities.multiplayer,
+      privateRooms: game.activeVersion.capabilities.privateRooms,
+      platforms: {
+        ...game.activeVersion.platforms,
+      },
+    }
   }
 
   private async readCatalogOrThrowUnavailable<T>(operation: () => Promise<T>): Promise<T> {
