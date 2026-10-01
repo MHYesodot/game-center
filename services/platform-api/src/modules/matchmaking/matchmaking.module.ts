@@ -69,6 +69,6 @@ import { RedisMatchmakingQueueStore } from './infrastructure/runtime/redis-match
       useExisting: RedisMatchmakingQueueStore,
     },
   ],
-  exports: [MATCH_READY_QUERY],
+  exports: [MATCH_READY_QUERY, MatchmakingService],
 })
 export class MatchmakingModule {}

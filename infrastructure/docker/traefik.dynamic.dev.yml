@@ -5,6 +5,11 @@ http:
         - web
       rule: PathPrefix(`/api`) || PathPrefix(`/health`)
       service: platform-api
+    realtime:
+      entryPoints:
+        - web
+      rule: PathPrefix(`/realtime/v1/ws`)
+      service: realtime-gateway
     web:
       entryPoints:
         - web
@@ -16,6 +21,10 @@ http:
       loadBalancer:
         servers:
           - url: http://platform-api:3000
+    realtime-gateway:
+      loadBalancer:
+        servers:
+          - url: http://realtime-gateway:8081
     web:
       loadBalancer:
         servers:

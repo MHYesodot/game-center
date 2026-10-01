@@ -6,12 +6,15 @@ import type {
   JoinLobbyRequest,
   LobbyDetails,
   LobbyErrorCode,
+  PlatformRealtimeEvent,
+  RealtimeChannel,
   SetLobbyReadyRequest,
 } from '@game-center/contracts'
 
 import { type CatalogQueryService, CATALOG_QUERY_SERVICE } from '../../../boundaries/catalog-query.js'
 import { type Clock, CLOCK } from '../../../boundaries/clock.js'
 import { type IdGenerator, ID_GENERATOR } from '../../../boundaries/id-generator.js'
+import { REALTIME_EVENT_PUBLISHER, type RealtimeEventPublisher } from '../../../boundaries/realtime-event-publisher.js'
 import { isPostgresDependencyError, isRedisDependencyError, logDependencyDown } from '../../../infrastructure/dependency-health.js'
 import {
   buildUnavailableRuntimeState,
@@ -45,6 +48,7 @@ export class LobbyService {
     @Inject(CATALOG_QUERY_SERVICE) private readonly catalogQueryService: CatalogQueryService,
     @Inject(CLOCK) private readonly clock: Clock,
     @Inject(ID_GENERATOR) private readonly idGenerator: IdGenerator,
+    @Inject(REALTIME_EVENT_PUBLISHER) private readonly realtimeEventPublisher: RealtimeEventPublisher,
   ) {}
 
   async createLobby(identity: LobbyRequestIdentity, request: CreateLobbyRequest): Promise<LobbyDetails> {
@@ -102,13 +106,27 @@ export class LobbyService {
     const aggregate = await this.requireLobby(lobbyId)
     await this.tryMarkConnected(aggregate.lobbyId, identity.playerId, now)
     this.logLobbyEvent('lobby_created', identity, { lobbyId, gameId: game.gameId })
-
-    return this.composeLobbyDetails(aggregate, { allowUnavailableRuntime: true })
+    const details = await this.composeLobbyDetails(aggregate, { allowUnavailableRuntime: true })
+    await this.publishLobbyUpdated(details)
+    return details
   }
 
   async getLobby(lobbyId: string): Promise<LobbyDetails> {
     const aggregate = await this.requireLobby(lobbyId)
     return this.composeLobbyDetails(aggregate, { allowUnavailableRuntime: true })
+  }
+
+  async canObserveLobby(lobbyId: string, playerId: string): Promise<boolean> {
+    const aggregate = await this.lobbyRepository.getById(lobbyId).catch((error) => {
+      this.handlePostgresError(error)
+      throw error
+    })
+
+    if (!aggregate) {
+      return false
+    }
+
+    return getActiveMember(aggregate, playerId) !== null
   }
 
   async joinLobby(lobbyId: string, identity: LobbyRequestIdentity, request: JoinLobbyRequest): Promise<LobbyDetails> {
@@ -181,7 +199,9 @@ export class LobbyService {
       this.logLobbyEvent('member_joined', identity, { lobbyId, playerId: identity.playerId })
     }
 
-    return this.composeLobbyDetails(result.aggregate, { allowUnavailableRuntime: true })
+    const details = await this.composeLobbyDetails(result.aggregate, { allowUnavailableRuntime: true })
+    await this.publishLobbyUpdated(details)
+    return details
   }
 
   async leaveLobby(lobbyId: string, identity: LobbyRequestIdentity): Promise<LobbyDetails> {
@@ -266,7 +286,9 @@ export class LobbyService {
 
     this.logLobbyEvent('member_left', identity, { lobbyId, playerId: identity.playerId })
 
-    return this.composeLobbyDetails(aggregate, { allowUnavailableRuntime: true })
+    const details = await this.composeLobbyDetails(aggregate, { allowUnavailableRuntime: true })
+    await this.publishLobbyUpdated(details)
+    return details
   }
 
   async setReady(lobbyId: string, identity: LobbyRequestIdentity, request: SetLobbyReadyRequest): Promise<LobbyDetails> {
@@ -283,7 +305,9 @@ export class LobbyService {
     }
 
     await this.requireRuntimeOperation(() => this.lobbyRuntimeStore.setReadyState(lobbyId, identity.playerId, request.ready, now))
-    return this.composeLobbyDetails(aggregate, { allowUnavailableRuntime: false })
+    const details = await this.composeLobbyDetails(aggregate, { allowUnavailableRuntime: false })
+    await this.publishLobbyUpdated(details)
+    return details
   }
 
   async startLobby(lobbyId: string, identity: LobbyRequestIdentity): Promise<LobbyDetails> {
@@ -343,7 +367,9 @@ export class LobbyService {
     await this.tryClearLobbyRuntime(lobbyId)
     this.logLobbyEvent('lobby_starting', identity, { lobbyId })
 
-    return this.composeLobbyDetails(aggregate, { allowUnavailableRuntime: true })
+    const details = await this.composeLobbyDetails(aggregate, { allowUnavailableRuntime: true })
+    await this.publishLobbyUpdated(details)
+    return details
   }
 
   async closeLobby(lobbyId: string, identity: LobbyRequestIdentity): Promise<LobbyDetails> {
@@ -387,7 +413,9 @@ export class LobbyService {
     await this.tryClearLobbyRuntime(lobbyId)
     this.logLobbyEvent('lobby_closed', identity, { lobbyId, reason: 'owner_closed' })
 
-    return this.composeLobbyDetails(aggregate, { allowUnavailableRuntime: true })
+    const details = await this.composeLobbyDetails(aggregate, { allowUnavailableRuntime: true })
+    await this.publishLobbyUpdated(details)
+    return details
   }
 
   private async requireLobby(lobbyId: string) {
@@ -567,6 +595,27 @@ export class LobbyService {
 
   private extendExpiry(now: string) {
     return new Date(new Date(now).getTime() + LOBBY_EXPIRY_WINDOW_MS).toISOString()
+  }
+
+  private async publishLobbyUpdated(lobby: LobbyDetails) {
+    const channels: RealtimeChannel[] = [
+      `lobby:${lobby.lobbyId}`,
+      ...lobby.members.filter((member) => member.leftAt === null).map((member) => `player:${member.playerId}` as const),
+    ]
+
+    const event: PlatformRealtimeEvent = {
+      protocolVersion: 'realtime.v1',
+      eventType: 'lobby.updated',
+      messageId: this.idGenerator.nextId(),
+      occurredAt: this.clock.now().toISOString(),
+      channels,
+      payload: {
+        eventName: 'lobby.updated',
+        lobby,
+      },
+    }
+
+    await this.realtimeEventPublisher.publish(event)
   }
 
   private hashJoinCode(joinCode: string) {

@@ -94,7 +94,7 @@ No future phase is treated as complete unless the repository and existing docume
 | P01 Session Lifecycle | DONE | P00 | Durable session lifecycle after match acceptance. |
 | P02 GameServerAllocator Abstraction | DONE | P01 | Provider-neutral allocation contract. |
 | P03 Docker DEV Game Allocator | DONE | P02 | First real session-to-server allocation flow. |
-| P04 Realtime Gateway | READY | P01, P03 | Authenticated realtime transport and subscriptions. |
+| P04 Realtime Gateway | IN_PROGRESS | P01, P03 | Authenticated realtime transport and subscriptions. |
 | P05 Authentication & Identity | NOT_STARTED | P04 | Replace transitional identity paths. |
 | P06 Player Profile | NOT_STARTED | P05 | Player-owned public and private profile data. |
 | P07 Social Graph | NOT_STARTED | P05, P06 | Friends, blocks, presence eligibility. |
@@ -565,7 +565,7 @@ Deferred Items:
 
 ### P04 Realtime Gateway
 
-Status: `READY`
+Status: `IN_PROGRESS`
 
 Purpose:
 

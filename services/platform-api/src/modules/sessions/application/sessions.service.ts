@@ -4,6 +4,8 @@ import type {
   GameSession,
   GameServerAllocation,
   MatchReadyPayload,
+  PlatformRealtimeEvent,
+  RealtimeChannel,
   SessionErrorCode,
   SessionFailureCode,
 } from '@game-center/contracts'
@@ -13,6 +15,7 @@ import { SessionAllocationError } from '../../../boundaries/session-allocation-o
 import { type SessionMatchReadyHandler } from '../../../boundaries/session-match-ready-handler.js'
 import { type Clock, CLOCK } from '../../../boundaries/clock.js'
 import { type IdGenerator, ID_GENERATOR } from '../../../boundaries/id-generator.js'
+import { REALTIME_EVENT_PUBLISHER, type RealtimeEventPublisher } from '../../../boundaries/realtime-event-publisher.js'
 import { isPostgresDependencyError, logDependencyDown } from '../../../infrastructure/dependency-health.js'
 import {
   canCancelSession,
@@ -36,6 +39,7 @@ export class SessionsService implements SessionMatchReadyHandler {
     @Inject(MATCH_READY_QUERY) private readonly matchReadyQuery: MatchReadyQuery,
     @Inject(CLOCK) private readonly clock: Clock,
     @Inject(ID_GENERATOR) private readonly idGenerator: IdGenerator,
+    @Inject(REALTIME_EVENT_PUBLISHER) private readonly realtimeEventPublisher: RealtimeEventPublisher,
   ) {}
 
   async createSession(identity: SessionRequestIdentity, request: CreateSessionRequest): Promise<GameSession> {
@@ -64,6 +68,19 @@ export class SessionsService implements SessionMatchReadyHandler {
     const session = await this.requireSession(sessionId)
     const authorized = this.requireParticipant(session, identity.playerId)
     return this.composeSession(authorized)
+  }
+
+  async canObserveSession(sessionId: string, playerId: string): Promise<boolean> {
+    const session = await this.sessionRepository.getById(sessionId).catch((error) => {
+      this.handlePostgresError(error)
+      throw error
+    })
+
+    if (!session) {
+      return false
+    }
+
+    return isSessionParticipant(session, playerId)
   }
 
   async requestAllocation(sessionId: string, identity: SessionRequestIdentity): Promise<GameServerAllocation> {
@@ -154,7 +171,9 @@ export class SessionsService implements SessionMatchReadyHandler {
     })
 
     this.logSessionEvent('session_cancelled', identity, { sessionId: result.sessionId, matchId: result.matchId })
-    return this.composeSession(result)
+    const session = this.composeSession(result)
+    await this.publishSessionUpdated(session)
+    return session
   }
 
   async onMatchReady(match: MatchReadyPayload): Promise<void> {
@@ -165,6 +184,7 @@ export class SessionsService implements SessionMatchReadyHandler {
     const now = this.clock.now().toISOString()
     const session = await this.insertOrReuseSession(match, now)
     const allocated = await this.ensureAllocationRequested(session, requestId)
+    await this.publishSessionUpdated(this.composeSession(this.toDurableAggregate(allocated)))
     return this.toDurableAggregate(allocated)
   }
 
@@ -370,13 +390,15 @@ export class SessionsService implements SessionMatchReadyHandler {
       failureCode,
     })
 
+    await this.publishSessionUpdated(this.composeSession(failed))
+
     return failed
   }
 
   private async transitionSessionToReady(sessionId: string) {
     const now = this.clock.now().toISOString()
 
-    return this.sessionRepository.withTransaction(async (transaction) => {
+    const session = await this.sessionRepository.withTransaction(async (transaction) => {
       const current = await transaction.getByIdForUpdate(sessionId)
 
       if (!current) {
@@ -398,14 +420,21 @@ export class SessionsService implements SessionMatchReadyHandler {
       }
 
       await transaction.updateSession(updated)
-      return {
+      const ready = {
         ...updated,
         participants: current.participants,
       }
+      return ready
     }).catch((error) => {
       this.handlePostgresError(error)
       throw error
     })
+
+    if (session.status === 'ready') {
+      await this.publishSessionUpdated(this.composeSession(session))
+    }
+
+    return session
   }
 
   private async requireSession(sessionId: string) {
@@ -534,6 +563,27 @@ export class SessionsService implements SessionMatchReadyHandler {
       expiresAt: session.expiresAt,
       failureCode: session.failureCode,
     }
+  }
+
+  private async publishSessionUpdated(session: GameSession) {
+    const channels: RealtimeChannel[] = [
+      `session:${session.sessionId}`,
+      ...session.participants.map((participant) => `player:${participant.playerId}` as const),
+    ]
+
+    const event: PlatformRealtimeEvent = {
+      protocolVersion: 'realtime.v1',
+      eventType: 'session.updated',
+      messageId: this.idGenerator.nextId(),
+      occurredAt: this.clock.now().toISOString(),
+      channels,
+      payload: {
+        eventName: 'session.updated',
+        session,
+      },
+    }
+
+    await this.realtimeEventPublisher.publish(event)
   }
 
   private isUniqueViolation(error: unknown): boolean {

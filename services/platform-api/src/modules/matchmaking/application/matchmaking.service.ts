@@ -7,11 +7,14 @@ import type {
   MatchmakingRequestDetails,
   MatchmakingRequester,
   MatchReadyPayload,
+  PlatformRealtimeEvent,
+  RealtimeChannel,
 } from '@game-center/contracts'
 
 import { type CatalogQueryService, CATALOG_QUERY_SERVICE } from '../../../boundaries/catalog-query.js'
 import { type Clock, CLOCK } from '../../../boundaries/clock.js'
 import { type IdGenerator, ID_GENERATOR } from '../../../boundaries/id-generator.js'
+import { REALTIME_EVENT_PUBLISHER, type RealtimeEventPublisher } from '../../../boundaries/realtime-event-publisher.js'
 import { isPostgresDependencyError, isRedisDependencyError, logDependencyDown } from '../../../infrastructure/dependency-health.js'
 import { MATCHMAKING_STRATEGY, type MatchmakingStrategy } from '../domain/matchmaking-strategy.js'
 import {
@@ -54,6 +57,7 @@ export class MatchmakingService {
     @Inject(CATALOG_QUERY_SERVICE) private readonly catalogQueryService: CatalogQueryService,
     @Inject(CLOCK) private readonly clock: Clock,
     @Inject(ID_GENERATOR) private readonly idGenerator: IdGenerator,
+    @Inject(REALTIME_EVENT_PUBLISHER) private readonly realtimeEventPublisher: RealtimeEventPublisher,
   ) {}
 
   async enqueue(identity: MatchmakingRequestIdentity, request: CreateMatchmakingRequest): Promise<MatchmakingRequestDetails> {
@@ -76,13 +80,28 @@ export class MatchmakingService {
     this.logMatchmakingEvent('matchmaking_enqueued', identity, { requestId: persisted.requestId, queueKey: persisted.queueKey })
 
     const refreshed = await this.requireRequest(persisted.requestId)
-    return this.composeRequestDetails(refreshed, { allowUnavailableRuntime: true })
+    const details = await this.composeRequestDetails(refreshed, { allowUnavailableRuntime: true })
+    await this.publishRequestUpdated(details)
+    return details
   }
 
   async getRequest(requestId: string, identity: MatchmakingRequestIdentity): Promise<MatchmakingRequestDetails> {
     const request = await this.requireOwnedRequest(requestId, identity)
     await this.tryEnsureQueuedRuntime(request)
     return this.composeRequestDetails(request, { allowUnavailableRuntime: true })
+  }
+
+  async canObserveRequest(requestId: string, playerId: string): Promise<boolean> {
+    const request = await this.matchmakingRepository.getRequestById(requestId).catch((error) => {
+      this.handlePostgresError(error)
+      throw error
+    })
+
+    if (!request) {
+      return false
+    }
+
+    return request.requesterType === 'player' && request.requesterId === playerId
   }
 
   async cancelRequest(requestId: string, identity: MatchmakingRequestIdentity): Promise<MatchmakingRequestDetails> {
@@ -139,7 +158,9 @@ export class MatchmakingService {
     await this.tryRemoveQueuedRuntime(result.request.queueKey, [result.request.requestId])
     this.logMatchmakingEvent('matchmaking_cancelled', identity, { requestId })
 
-    return this.composeRequestDetails(result.request, { allowUnavailableRuntime: true })
+    const details = await this.composeRequestDetails(result.request, { allowUnavailableRuntime: true })
+    await this.publishRequestUpdated(details)
+    return details
   }
 
   async getProposal(proposalId: string, identity: MatchmakingRequestIdentity): Promise<MatchProposalDetails> {
@@ -296,7 +317,10 @@ export class MatchmakingService {
     }
 
     this.logMatchmakingEvent('match_proposal_accepted', identity, { proposalId })
-    return this.composeProposalDetails(result.proposal)
+    const details = this.composeProposalDetails(result.proposal)
+    await this.publishProposalUpdated(details)
+    await this.publishRequestsUpdatedByIds(result.proposal.members.map((member) => member.requestId))
+    return details
   }
 
   async rejectProposal(proposalId: string, identity: MatchmakingRequestIdentity): Promise<MatchProposalDetails> {
@@ -374,12 +398,18 @@ export class MatchmakingService {
     if (proposal.proposal.status === 'expired') {
       await this.requeueRequestsById(proposal.requeueRequestIds)
       this.logMatchmakingEvent('match_proposal_expired', identity, { proposalId })
-      return this.composeProposalDetails(proposal.proposal)
+      const details = this.composeProposalDetails(proposal.proposal)
+      await this.publishProposalUpdated(details)
+      await this.publishRequestsUpdatedByIds(proposal.proposal.members.map((member) => member.requestId))
+      return details
     }
 
     await this.requeueRequestsById(proposal.requeueRequestIds)
     this.logMatchmakingEvent('match_proposal_rejected', identity, { proposalId })
-    return this.composeProposalDetails(proposal.proposal)
+    const details = this.composeProposalDetails(proposal.proposal)
+    await this.publishProposalUpdated(details)
+    await this.publishRequestsUpdatedByIds(proposal.proposal.members.map((member) => member.requestId))
+    return details
   }
 
   async runQueueCycle(queueKey: string): Promise<MatchProposalDetails | null> {
@@ -463,7 +493,10 @@ export class MatchmakingService {
       await this.tryRemoveQueuedRuntime(queueKey, proposal.members.map((member) => member.requestId))
       await this.tryTouchProposalRuntime(proposal.proposalId, proposal.expiresAt)
       this.logMatchmakingEvent('match_proposal_created', null, { proposalId: proposal.proposalId })
-      return this.composeProposalDetails(proposal)
+      const details = this.composeProposalDetails(proposal)
+      await this.publishProposalUpdated(details)
+      await this.publishRequestsUpdatedByIds(proposal.members.map((member) => member.requestId))
+      return details
     } finally {
       await this.tryReleaseQueueLock(queueKey, lockOwner)
     }
@@ -587,6 +620,8 @@ export class MatchmakingService {
 
     await this.tryClearProposalRuntime(proposalId)
     await this.requeueRequestsById(expired.members.map((member) => member.requestId))
+    await this.publishProposalUpdated(this.composeProposalDetails(expired))
+    await this.publishRequestsUpdatedByIds(expired.members.map((member) => member.requestId))
   }
 
   private async expireProposalInTransaction(
@@ -817,8 +852,70 @@ export class MatchmakingService {
         throw persistenceError
       })
 
+      const failedProposal = await this.matchmakingRepository.getProposalById(proposal.proposalId).catch((persistenceError) => {
+        this.handlePostgresError(persistenceError)
+        throw persistenceError
+      })
+      if (failedProposal) {
+        await this.publishProposalUpdated(this.composeProposalDetails(failedProposal))
+        await this.publishRequestsUpdatedByIds(failedProposal.members.map((member) => member.requestId))
+      }
+
       throw error
     }
+  }
+
+  private async publishRequestUpdated(request: MatchmakingRequestDetails) {
+    const event: PlatformRealtimeEvent = {
+      protocolVersion: 'realtime.v1',
+      eventType: 'matchmaking.request.updated',
+      messageId: this.idGenerator.nextId(),
+      occurredAt: this.clock.now().toISOString(),
+      channels: [`matchmaking:request:${request.requestId}`, `player:${request.requester.id}`],
+      payload: {
+        eventName: 'matchmaking.request.updated',
+        request,
+      },
+    }
+
+    await this.realtimeEventPublisher.publish(event)
+  }
+
+  private async publishRequestsUpdatedByIds(requestIds: string[]) {
+    for (const requestId of [...new Set(requestIds)]) {
+      const request = await this.matchmakingRepository.getRequestById(requestId).catch((error) => {
+        this.handlePostgresError(error)
+        throw error
+      })
+
+      if (!request) {
+        continue
+      }
+
+      const details = await this.composeRequestDetails(request, { allowUnavailableRuntime: true })
+      await this.publishRequestUpdated(details)
+    }
+  }
+
+  private async publishProposalUpdated(proposal: MatchProposalDetails) {
+    const channels: RealtimeChannel[] = [
+      ...proposal.members.map((member) => `matchmaking:request:${member.requestId}` as const),
+      ...proposal.members.map((member) => `player:${member.playerId}` as const),
+    ]
+
+    const event: PlatformRealtimeEvent = {
+      protocolVersion: 'realtime.v1',
+      eventType: 'matchmaking.proposal.updated',
+      messageId: this.idGenerator.nextId(),
+      occurredAt: this.clock.now().toISOString(),
+      channels,
+      payload: {
+        eventName: 'matchmaking.proposal.updated',
+        proposal,
+      },
+    }
+
+    await this.realtimeEventPublisher.publish(event)
   }
 
   private async createOrReuseActiveRequest(

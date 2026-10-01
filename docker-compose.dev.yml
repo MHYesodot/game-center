@@ -64,6 +64,10 @@ services:
     environment:
       PORT: 8081
       PLATFORM_API_URL: http://platform-api:3000
+      REDIS_URL: redis://redis:6379
+      NATS_URL: nats://nats:4222
+      REALTIME_ALLOWED_ORIGINS: http://localhost:${DEV_HTTP_PORT:-8080}
+      REALTIME_WEBSOCKET_PATH: /realtime/v1/ws
     networks:
       - platform
     profiles: [full]

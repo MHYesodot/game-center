@@ -53,5 +53,6 @@ import { SessionAllocationPortAdapter } from './infrastructure/session-allocatio
       useExisting: SessionsService,
     },
   ],
+  exports: [SessionsService],
 })
 export class SessionsModule {}

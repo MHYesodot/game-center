@@ -49,5 +49,6 @@ import * as lobbySchema from './infrastructure/persistence/schema/lobby.schema.j
       useExisting: RedisLobbyRuntimeStore,
     },
   ],
+  exports: [LobbyService],
 })
 export class LobbyModule {}

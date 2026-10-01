@@ -19,6 +19,11 @@ export default defineConfig(({ mode }) => {
           target: env.VITE_API_PROXY_TARGET ?? 'http://127.0.0.1:3000',
           changeOrigin: true,
         },
+        '/realtime/v1/ws': {
+          target: env.VITE_REALTIME_PROXY_TARGET ?? 'ws://127.0.0.1:8081',
+          changeOrigin: true,
+          ws: true,
+        },
       },
     },
   }

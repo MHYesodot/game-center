@@ -2,89 +2,51 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/mhurwitz/game-center/services/realtime-gateway/internal/app"
+	"github.com/mhurwitz/game-center/services/realtime-gateway/internal/config"
 )
 
-type config struct {
-	Port           string
-	LogLevel       string
-	PlatformAPIURL string
-}
-
 func main() {
-	cfg := loadConfig()
-	logger := log.New(os.Stdout, "", 0)
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf(`{"level":"error","service":"realtime-gateway","message":"invalid_config","error":%q}`+"\n", err.Error())
+	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/health/live", func(writer http.ResponseWriter, request *http.Request) {
-		writeJSON(writer, http.StatusOK, map[string]any{"ok": true, "service": "realtime-gateway", "status": "live"})
-	})
-	mux.HandleFunc("/health/ready", func(writer http.ResponseWriter, request *http.Request) {
-		writeJSON(writer, http.StatusOK, map[string]any{
-			"ok":           true,
-			"service":      "realtime-gateway",
-			"status":       "ready",
-			"platformApiUrl": cfg.PlatformAPIURL,
-		})
-	})
+	logger := log.New(os.Stdout, "", 0)
+	gateway, err := app.New(cfg, logger)
+	if err != nil {
+		logger.Fatalf(`{"level":"error","service":"realtime-gateway","message":"bootstrap_failed","error":%q}`+"\n", err.Error())
+	}
+	defer gateway.Close()
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           loggingMiddleware(logger, mux),
+		Handler:           gateway.Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	go func() {
-		logger.Printf(`{"level":"info","service":"realtime-gateway","message":"starting","port":"%s"}`, cfg.Port)
+		logger.Printf(`{"level":"info","service":"realtime-gateway","message":"starting","port":%q,"nodeId":%q}`+"\n", cfg.Port, cfg.GatewayNodeID)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatalf(`{"level":"error","service":"realtime-gateway","message":"listen failed","error":"%s"}`, err.Error())
+			logger.Fatalf(`{"level":"error","service":"realtime-gateway","message":"listen_failed","error":%q}`+"\n", err.Error())
 		}
 	}()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-
 	<-ctx.Done()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	logger.Printf(`{"level":"info","service":"realtime-gateway","message":"shutting down"}`)
+	logger.Printf(`{"level":"info","service":"realtime-gateway","message":"shutting_down","nodeId":%q}`+"\n", cfg.GatewayNodeID)
+	_ = gateway.Shutdown(shutdownCtx)
 	_ = server.Shutdown(shutdownCtx)
-}
-
-func loadConfig() config {
-	return config{
-		Port:           envOrDefault("PORT", "8081"),
-		LogLevel:       envOrDefault("LOG_LEVEL", "info"),
-		PlatformAPIURL: envOrDefault("PLATFORM_API_URL", "http://platform-api:3000"),
-	}
-}
-
-func envOrDefault(key string, fallback string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return fallback
-	}
-
-	return value
-}
-
-func writeJSON(writer http.ResponseWriter, status int, payload any) {
-	writer.Header().Set("Content-Type", "application/json")
-	writer.WriteHeader(status)
-	_ = json.NewEncoder(writer).Encode(payload)
-}
-
-func loggingMiddleware(logger *log.Logger, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		logger.Printf(`{"level":"info","service":"realtime-gateway","method":"%s","path":"%s"}`, request.Method, request.URL.Path)
-		next.ServeHTTP(writer, request)
-	})
 }
