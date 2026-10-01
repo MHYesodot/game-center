@@ -47,6 +47,12 @@ func (registry *LocalRegistry) Register(snapshot *ConnectionSnapshot) {
 		registry.playerIndex[snapshot.PlayerID] = make(map[string]*ConnectionSnapshot)
 	}
 	registry.playerIndex[snapshot.PlayerID][snapshot.ConnectionID] = snapshot
+	for _, channel := range snapshot.SubscribedChannels {
+		if _, ok := registry.channelIndex[channel]; !ok {
+			registry.channelIndex[channel] = make(map[string]*ConnectionSnapshot)
+		}
+		registry.channelIndex[channel][snapshot.ConnectionID] = snapshot
+	}
 }
 
 func (registry *LocalRegistry) Unregister(connectionID string) *ConnectionSnapshot {

@@ -20,7 +20,13 @@ type Consumer struct {
 }
 
 func Connect(url string) (*nats.Conn, error) {
-	return nats.Connect(url, nats.Name("realtime-gateway"), nats.ReconnectWait(250*time.Millisecond), nats.MaxReconnects(-1))
+	return nats.Connect(
+		url,
+		nats.Name("realtime-gateway"),
+		nats.ReconnectWait(250*time.Millisecond),
+		nats.MaxReconnects(-1),
+		nats.RetryOnFailedConnect(true),
+	)
 }
 
 func NewConsumer(connection *nats.Conn, logger *log.Logger, registry *runtime.LocalRegistry) *Consumer {
@@ -38,6 +44,9 @@ func (consumer *Consumer) Start() error {
 }
 
 func (consumer *Consumer) Close() error {
+	if consumer.connection != nil {
+		defer consumer.connection.Close()
+	}
 	if consumer.subscription != nil {
 		return consumer.subscription.Drain()
 	}
@@ -77,6 +86,10 @@ func (consumer *Consumer) handle(message *nats.Msg) {
 		select {
 		case <-connection.Closed:
 			continue
+		default:
+		}
+
+		select {
 		case connection.Send <- envelope:
 		default:
 			if connection.CloseSlowConsumer != nil {

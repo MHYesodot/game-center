@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strings"
@@ -18,12 +19,25 @@ import (
 	"github.com/mhurwitz/game-center/services/realtime-gateway/internal/runtime"
 )
 
+type platformClient interface {
+	ResolveIdentity(ctx context.Context, playerID string) (string, error)
+	AuthorizeSubscription(ctx context.Context, playerID string, target contracts.SubscriptionTarget) (contracts.AuthorizeSubscriptionResponse, error)
+}
+
+type runtimeRegistry interface {
+	RegisterConnection(ctx context.Context, metadata runtime.RedisConnectionMetadata, channels []string) error
+	TouchConnection(ctx context.Context, metadata runtime.RedisConnectionMetadata, channels []string) error
+	Subscribe(ctx context.Context, metadata runtime.RedisConnectionMetadata, channel string, channels []string) error
+	Unsubscribe(ctx context.Context, metadata runtime.RedisConnectionMetadata, channel string) error
+	UnregisterConnection(ctx context.Context, metadata runtime.RedisConnectionMetadata, channels []string) error
+}
+
 type WebSocketHandler struct {
 	config      config.Config
 	logger      *log.Logger
-	platform    *platformapi.Client
+	platform    platformClient
 	local       *runtime.LocalRegistry
-	redis       *runtime.RedisRegistry
+	redis       runtimeRegistry
 	upgrader    websocket.Upgrader
 	connections sync.Map
 }
@@ -48,6 +62,10 @@ type managedConnection struct {
 }
 
 func NewWebSocketHandler(cfg config.Config, logger *log.Logger, platform *platformapi.Client, local *runtime.LocalRegistry, redis *runtime.RedisRegistry) *WebSocketHandler {
+	return NewWebSocketHandlerWithDependencies(cfg, logger, platform, local, redis)
+}
+
+func NewWebSocketHandlerWithDependencies(cfg config.Config, logger *log.Logger, platform platformClient, local *runtime.LocalRegistry, redis runtimeRegistry) *WebSocketHandler {
 	allowedOrigins := make(map[string]struct{}, len(cfg.AllowedOrigins))
 	for _, origin := range cfg.AllowedOrigins {
 		allowedOrigins[origin] = struct{}{}
@@ -84,18 +102,30 @@ func (handler *WebSocketHandler) ServeHTTP(writer http.ResponseWriter, request *
 
 	command, payload, err := handler.readHandshake(connection)
 	if err != nil {
+		var netError interface{ Timeout() bool }
+		if errors.As(err, &netError) && netError.Timeout() {
+			handler.closeProtocolError(connection, "HANDSHAKE_TIMEOUT", "errors.realtime.handshakeTimeout")
+			return
+		}
 		handler.closeProtocolError(connection, "HANDSHAKE_REQUIRED", "errors.realtime.handshakeRequired")
+		return
+	}
+	if strings.TrimSpace(payload.PlayerID) == "" {
+		handler.closeProtocolError(connection, "INVALID_PLAYER_ID", "errors.realtime.invalidPlayerId")
+		return
+	}
+	if payload.ProtocolVersion != handler.config.ProtocolVersion {
+		handler.closeUnsupportedProtocol(connection)
+		return
+	}
+	if !isValidClientType(payload.ClientType) || strings.TrimSpace(payload.ClientVersion) == "" || !isValidPlatform(payload.Platform) {
+		handler.closeProtocolError(connection, "INVALID_MESSAGE", "errors.realtime.invalidClientMetadata")
 		return
 	}
 
 	resolvedPlayerID, err := handler.platform.ResolveIdentity(request.Context(), strings.TrimSpace(payload.PlayerID))
 	if err != nil {
 		handler.closeDependencyFailure(connection)
-		return
-	}
-
-	if payload.ProtocolVersion != handler.config.ProtocolVersion {
-		handler.closeUnsupportedProtocol(connection)
 		return
 	}
 
@@ -274,7 +304,7 @@ func (handler *WebSocketHandler) handleSubscribe(ctx context.Context, managed *m
 		handler.sendError(managed, "REALTIME_UNAVAILABLE", "errors.realtime.unavailable", command.MessageID)
 		return
 	}
-	if !authorized.Allowed || strings.TrimSpace(authorized.Channel) == "" {
+	if !authorized.Allowed || strings.TrimSpace(authorized.Channel) == "" || !isChannelAllowedForTarget(managed.playerID, payload.Target, authorized.Channel) {
 		handler.sendError(managed, "SUBSCRIPTION_DENIED", "errors.realtime.subscriptionDenied", command.MessageID)
 		return
 	}
@@ -298,7 +328,7 @@ func (handler *WebSocketHandler) handleUnsubscribe(ctx context.Context, managed 
 		handler.sendError(managed, "REALTIME_UNAVAILABLE", "errors.realtime.unavailable", command.MessageID)
 		return
 	}
-	if strings.TrimSpace(authorized.Channel) != "" {
+	if strings.TrimSpace(authorized.Channel) != "" && isChannelAllowedForTarget(managed.playerID, payload.Target, authorized.Channel) {
 		handler.local.RemoveSubscription(managed.id, authorized.Channel)
 		managed.channels = removeChannel(managed.channels, authorized.Channel)
 		_ = handler.redis.Unsubscribe(ctx, handler.metadataFromConnection(managed), authorized.Channel)
@@ -453,4 +483,37 @@ func newMessageID() string {
 	}
 
 	return id
+}
+
+func isValidClientType(value string) bool {
+	switch value {
+	case "web", "desktop", "mobile", "test":
+		return true
+	default:
+		return false
+	}
+}
+
+func isValidPlatform(value string) bool {
+	switch value {
+	case "web", "windows", "macos", "linux", "ios", "android":
+		return true
+	default:
+		return false
+	}
+}
+
+func isChannelAllowedForTarget(playerID string, target contracts.SubscriptionTarget, channel string) bool {
+	switch target.Kind {
+	case "player":
+		return channel == "player:"+playerID
+	case "lobby":
+		return target.LobbyID != "" && channel == "lobby:"+target.LobbyID
+	case "matchmakingRequest":
+		return target.RequestID != "" && channel == "matchmaking:request:"+target.RequestID
+	case "session":
+		return target.SessionID != "" && channel == "session:"+target.SessionID
+	default:
+		return false
+	}
 }
