@@ -94,8 +94,8 @@ No future phase is treated as complete unless the repository and existing docume
 | P01 Session Lifecycle | DONE | P00 | Durable session lifecycle after match acceptance. |
 | P02 GameServerAllocator Abstraction | DONE | P01 | Provider-neutral allocation contract. |
 | P03 Docker DEV Game Allocator | DONE | P02 | First real session-to-server allocation flow. |
-| P04 Realtime Gateway | IN_PROGRESS | P01, P03 | Authenticated realtime transport and subscriptions. |
-| P05 Authentication & Identity | NOT_STARTED | P04 | Replace transitional identity paths. |
+| P04 Realtime Gateway | DONE | P01, P03 | Authenticated realtime transport and subscriptions. |
+| P05 Authentication & Identity | READY | P04 | Replace transitional identity paths. |
 | P06 Player Profile | NOT_STARTED | P05 | Player-owned public and private profile data. |
 | P07 Social Graph | NOT_STARTED | P05, P06 | Friends, blocks, presence eligibility. |
 | P08 Party System | NOT_STARTED | P07 | Party lifecycle distinct from Lobby. |
@@ -565,7 +565,7 @@ Deferred Items:
 
 ### P04 Realtime Gateway
 
-Status: `IN_PROGRESS`
+Status: `DONE`
 
 Purpose:
 
@@ -638,9 +638,19 @@ Deferred Items:
 
 - gameplay simulation networking
 
+Closure Evidence (2026-10-01):
+
+- Final-default downstream backpressure proof used a temporary Linux-network raw WebSocket client with paused reads, alongside a normal reader on the same explicitly acknowledged player channel. No production infrastructure or gateway semantics changed.
+- With outbound queue capacity 64, 1,500 synthetic control-plane events paced at a target 200 events/second triggered `1008 SLOW_CONSUMER`; the slow registration disappeared after 633 ms. Queue saturation is evidenced by the implemented queue-full close path, not a new queue-depth metric.
+- The normal reader received all 1,500 events, remained usable, and gateway readiness returned 200. Gateway logs contained no NATS slow-consumer or dropped-message errors during the proof.
+- Slow connection metadata and channel membership were removed, presence decreased to one connection, and closing the normal reader left no proof connection keys, channel members, or presence. No established inbound gateway sockets remained.
+- The unnecessary Matchmaking Set-to-array spread was removed without changing iteration order or deduplication; lint reported zero warnings and errors.
+- All final repo gates passed, including 76 unit tests, 41 integration tests, 6 Docker integration tests, 10 e2e tests, migration checks with no schema changes, and both Compose configurations. Go test, vet, and race gates passed in the digest-pinned Go 1.23.12 container.
+- Transitional player identity remains the P04 boundary. P05 is ready only; no P05 implementation was started.
+
 ### P05 Authentication & Identity
 
-Status: `NOT_STARTED`
+Status: `READY`
 
 Purpose:
 

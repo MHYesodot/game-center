@@ -882,7 +882,7 @@ export class MatchmakingService {
   }
 
   private async publishRequestsUpdatedByIds(requestIds: string[]) {
-    for (const requestId of [...new Set(requestIds)]) {
+    for (const requestId of new Set(requestIds)) {
       const request = await this.matchmakingRepository.getRequestById(requestId).catch((error) => {
         this.handlePostgresError(error)
         throw error
