@@ -80,6 +80,7 @@ describe('quality validators', () => {
 
     expect(result.status).toBe(1)
     expect(result.stderr).toContain('allocation domain layer must not depend on raw persistence, container, or cluster clients')
+    expect(result.stderr).toContain('only allocation infrastructure may import container or cluster SDKs directly')
     expect(result.stderr).toContain('allocation application layer must not import provider or persistence implementations directly')
     expect(result.stderr).toContain('allocation modules must not depend on Session persistence internals')
     expect(result.stderr).toContain('allocation modules must use the Catalog public boundary, not Catalog persistence internals')

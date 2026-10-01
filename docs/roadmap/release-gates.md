@@ -42,6 +42,7 @@ npm run typecheck
 npm run validate
 npm run test
 npm run test:integration
+npm run test:integration:docker
 npm run build
 npm run test:e2e
 npm run db:status
@@ -64,9 +65,16 @@ POSTGRES_URL=postgresql://gamecenter:gamecenter@localhost:5432/gamecenter
 REDIS_URL=redis://localhost:6379
 ```
 
+Docker allocator phases also require:
+
+```bash
+docker build -t game-center/test-game-server:p03 -f infrastructure/docker/test-game-server/Dockerfile infrastructure/docker/test-game-server
+```
+
 Notes:
 
 - The dev compose override publishes PostgreSQL on `localhost:5432`, Redis on `localhost:6379`, and NATS on `localhost:4222` for host-run validation.
+- `npm run test:integration:docker` additionally requires a reachable Docker daemon and uses the explicit `docker` allocation provider.
 - Environment bootstrap failures must not be misclassified as product regressions.
 - A phase is not complete if it passes only under ad hoc local conditions that are not documented here.
 

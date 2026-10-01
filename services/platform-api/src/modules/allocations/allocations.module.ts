@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config'
 import type { Pool } from 'pg'
 
 import { SESSION_ALLOCATION_ORCHESTRATOR } from '../../boundaries/session-allocation-orchestrator.js'
+import { ALLOCATION_PROVIDER_READINESS } from '../../boundaries/allocation-provider-readiness.js'
 import { CLOCK } from '../../boundaries/clock.js'
 import { ID_GENERATOR } from '../../boundaries/id-generator.js'
 import { DATABASE_POOL } from '../../infrastructure/infrastructure.tokens.js'
@@ -16,6 +17,12 @@ import {
   GAME_SERVER_ALLOCATOR_REGISTRY,
 } from './application/allocations.ports.js'
 import { createAllocationsDatabase, ALLOCATIONS_DRIZZLE_DB } from './infrastructure/persistence/allocation.persistence.js'
+import { createDockerAllocatorConfig, DOCKER_ALLOCATOR_CONFIG } from './infrastructure/docker-allocator.config.js'
+import { DockerAllocationCleanupService } from './infrastructure/docker-allocation-cleanup.service.js'
+import { DockerGameServerAllocator } from './infrastructure/docker-game-server-allocator.js'
+import { DockerAllocatorReadinessProbe } from './infrastructure/docker-allocator-readiness.probe.js'
+import { DOCKER_RUNTIME_CLIENT } from './infrastructure/docker-runtime.client.js'
+import { DockerodeRuntimeClient } from './infrastructure/dockerode-runtime.client.js'
 import { PostgresAllocationRepository } from './infrastructure/persistence/repositories/postgres-allocation.repository.js'
 import { StaticGameServerAllocatorRegistry } from './infrastructure/static-game-server-allocator.registry.js'
 import { TestGameServerAllocator } from './infrastructure/test-game-server-allocator.js'
@@ -28,6 +35,10 @@ import { UnavailableGameServerAllocator } from './infrastructure/unavailable-gam
     PostgresAllocationRepository,
     UnavailableGameServerAllocator,
     TestGameServerAllocator,
+    DockerodeRuntimeClient,
+    DockerGameServerAllocator,
+    DockerAllocationCleanupService,
+    DockerAllocatorReadinessProbe,
     StaticGameServerAllocatorRegistry,
     {
       provide: CLOCK,
@@ -47,6 +58,15 @@ import { UnavailableGameServerAllocator } from './infrastructure/unavailable-gam
       useFactory: (pool: Pool) => createAllocationsDatabase(pool),
     },
     {
+      provide: DOCKER_ALLOCATOR_CONFIG,
+      inject: [ConfigService],
+      useFactory: createDockerAllocatorConfig,
+    },
+    {
+      provide: DOCKER_RUNTIME_CLIENT,
+      useExisting: DockerodeRuntimeClient,
+    },
+    {
       provide: ALLOCATION_REPOSITORY,
       useExisting: PostgresAllocationRepository,
     },
@@ -57,13 +77,17 @@ import { UnavailableGameServerAllocator } from './infrastructure/unavailable-gam
     {
       provide: DEFAULT_ALLOCATION_PROVIDER,
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => configService.get<'unavailable' | 'test'>('ALLOCATION_PROVIDER') ?? 'unavailable',
+      useFactory: (configService: ConfigService) => configService.get<'unavailable' | 'test' | 'docker'>('ALLOCATION_PROVIDER') ?? 'unavailable',
+    },
+    {
+      provide: ALLOCATION_PROVIDER_READINESS,
+      useExisting: DockerAllocatorReadinessProbe,
     },
     {
       provide: SESSION_ALLOCATION_ORCHESTRATOR,
       useExisting: AllocationsService,
     },
   ],
-  exports: [SESSION_ALLOCATION_ORCHESTRATOR],
+  exports: [SESSION_ALLOCATION_ORCHESTRATOR, ALLOCATION_PROVIDER_READINESS, DockerAllocationCleanupService],
 })
 export class AllocationsModule {}

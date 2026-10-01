@@ -14,7 +14,8 @@
     "db:prepare": "npm run db:migrate && npm run db:seed",
     "lint": "oxlint src",
     "test": "vitest run \"src/**/*.spec.ts\"",
-    "test:integration": "vitest run --config vitest.integration.config.mjs"
+    "test:integration": "vitest run --config vitest.integration.config.mjs",
+    "test:integration:docker": "vitest run --config vitest.docker.integration.config.mjs"
   },
   "dependencies": {
     "@game-center/contracts": "*",
@@ -22,6 +23,7 @@
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.1.6",
     "@nestjs/platform-express": "^11.1.6",
+    "dockerode": "^4.0.9",
     "drizzle-orm": "^0.44.5",
     "nats": "^2.29.3",
     "pg": "^8.16.3",
@@ -31,6 +33,7 @@
     "zod": "^4.1.11"
   },
   "devDependencies": {
+    "@types/dockerode": "^3.3.39",
     "@types/express": "^5.0.3",
     "@types/node": "^24.13.3",
     "@types/pg": "^8.15.5",

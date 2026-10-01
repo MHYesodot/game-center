@@ -141,6 +141,9 @@ Default language and runtime choices are fixed unless an ADR approves an excepti
 - Allocations obtains artifact and compatibility metadata only through the public Catalog allocation-query boundary.
 - Stable runtime defaults to `ALLOCATION_PROVIDER=unavailable`, which returns semantic allocation failure rather than fabricating a server endpoint.
 - The deterministic `test` provider is used only by test and integration harnesses to prove concurrency, reconciliation, and release behavior.
+- The explicit `docker` provider enables real DEV and CI container allocation without changing the public allocation contract.
+- Docker readiness is folded into `/health/ready` only when the Docker provider is enabled.
+- Direct `dockerode` usage is confined to allocation infrastructure so other modules remain provider-neutral.
 - `Allocation ready` projects into Session `ready`, but Session and Allocation remain separate sources of truth for gameplay lifecycle vs provisioning lifecycle.
 
 ## Target System Diagram

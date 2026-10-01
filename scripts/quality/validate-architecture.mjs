@@ -24,6 +24,7 @@ const translationKeyPattern = /^(?:common|navigation|catalog|lobby|matchmaking|e
 const productionGameMainPattern = /\/games\/production\/[^/]+\/src\/main\.[cm]?[jt]s$/
 const productionGamePathPattern = /\/games\/production\//
 const allocationInfraDependencyPattern = /^(?:drizzle-orm(?:\/|$)|pg$|redis$|dockerode$|@kubernetes\/client-node$|agones(?:$|\/))/
+const allocationRuntimeSdkPattern = /^(?:dockerode$|@kubernetes\/client-node$|agones(?:$|\/))/
 
 function normalizePath(filePath) {
   return filePath.replace(/\\/g, '/')
@@ -387,6 +388,15 @@ for (const filePath of files) {
       allocationInfraDependencyPattern.test(specifier)
     ) {
       violations.push(`${toRelative(filePath)} allocation application layer must not depend on raw persistence, container, or cluster clients: ${specifier}`)
+    }
+
+    if (
+      normalizedFilePath.includes('/services/platform-api/src/') &&
+      !/\.spec\.[cm]?[jt]sx?$/.test(normalizedFilePath) &&
+      allocationRuntimeSdkPattern.test(specifier) &&
+      !normalizedFilePath.includes('/services/platform-api/src/modules/allocations/infrastructure/')
+    ) {
+      violations.push(`${toRelative(filePath)} only allocation infrastructure may import container or cluster SDKs directly: ${specifier}`)
     }
 
     if (

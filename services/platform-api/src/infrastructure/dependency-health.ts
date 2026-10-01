@@ -1,8 +1,13 @@
-export type DependencyName = 'postgres' | 'redis' | 'nats'
+export type DependencyName = 'postgres' | 'redis' | 'nats' | 'docker'
 
 export type DependencyState = 'up' | 'down'
 
-export type DependencyStatuses = Record<DependencyName, DependencyState>
+export type DependencyStatuses = {
+  postgres: DependencyState
+  redis: DependencyState
+  nats: DependencyState
+  docker?: DependencyState
+}
 
 type ErrorLike = {
   code?: string

@@ -2,7 +2,7 @@ import type { GameServerType } from './catalog.js'
 
 export type AllocationStatus = 'requested' | 'provisioning' | 'ready' | 'failed' | 'releasing' | 'released' | 'expired'
 
-export type AllocationProvider = 'unavailable' | 'test'
+export type AllocationProvider = 'unavailable' | 'test' | 'docker'
 
 export type ConnectionTransport = 'tcp' | 'udp' | 'websocket' | 'quic'
 

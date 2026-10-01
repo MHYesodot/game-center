@@ -1,6 +1,6 @@
 # Game Server Allocation Contract
 
-Status: Accepted source of truth for P02 GameServerAllocator Abstraction
+Status: Accepted source of truth for P03 Docker DEV Game Allocator
 
 ## Public Platform Boundary
 
@@ -96,12 +96,13 @@ Session reaches the concrete allocator orchestration through `SessionAllocationP
 
 - `get(provider: AllocationProvider): GameServerAllocator`
 
-P02 provider set in code:
+Provider set in code:
 
 - `unavailable`
 - `test`
+- `docker`
 
-The stable runtime default is `unavailable`.
+The stable runtime default remains `unavailable`. Real Docker allocation is enabled only when `ALLOCATION_PROVIDER=docker` is set explicitly.
 
 ## Repository Contract
 
@@ -152,7 +153,6 @@ P02 currently uses the first, second, and timeout-oriented paths in implementati
 
 ## Explicit P02 Non-Goals
 
-- no real Docker allocator
 - no Kubernetes or Agones allocator
 - no fabricated server endpoint in the stable runtime
 - no allocator-owned gameplay state

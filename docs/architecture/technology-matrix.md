@@ -43,6 +43,7 @@
 | NATS JetStream | Async event backbone | NATS | Docker | Yes | Low-coupling event integration |
 | MinIO | Object storage in DEV | MinIO | Docker | Yes | S3-compatible local storage |
 | Traefik | DEV edge / reverse proxy | Traefik | Docker | Yes | Single entry point for local development |
+| Docker Engine + dockerode | DEV/CI dedicated game-server allocation | Docker Desktop or Docker Engine | Docker + Node.js | Yes | Explicit only when `ALLOCATION_PROVIDER=docker`; confined to allocation infrastructure |
 | Drizzle Kit | Migration generation for platform persistence | TypeScript tooling | Node.js | No | Single ORM and SQL migration toolchain for the platform API |
 | OpenTelemetry Collector | Telemetry aggregation | OTel Collector | Docker | Yes | Unified telemetry pipeline |
 | Prometheus | Metrics | Prometheus | Docker | Yes | Metrics storage |

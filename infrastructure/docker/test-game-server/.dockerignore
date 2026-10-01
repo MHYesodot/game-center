@@ -1,0 +1,4 @@
+*
+!Dockerfile
+!healthcheck.mjs
+!server.mjs

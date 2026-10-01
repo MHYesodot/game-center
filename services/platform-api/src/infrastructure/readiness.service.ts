@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config'
 import { connect } from 'nats'
 import { createClient } from 'redis'
 
+import type { AllocationProviderReadiness } from '../boundaries/allocation-provider-readiness.js'
 import { createManagedPostgresPool } from './database.providers.js'
 import { type DependencyName, type DependencyState, type DependencyStatuses, logDependencyDown } from './dependency-health.js'
 import { NATS, POSTGRES, REDIS } from './infrastructure.tokens.js'
@@ -63,17 +64,22 @@ export class ReadinessService implements OnApplicationShutdown {
     @Inject(NATS) private readonly nats: NatsReadinessClient,
   ) {}
 
-  async readiness(): Promise<DependencyStatuses> {
+  async readiness(allocationProviderReadiness?: AllocationProviderReadiness | null): Promise<DependencyStatuses> {
     const [postgres, redis, nats] = await Promise.all([
       this.checkDependency('postgres', () => this.postgres.query('select 1')),
       this.checkDependency('redis', () => this.redis.ping()),
       this.checkDependency('nats', () => this.nats.flush()),
     ])
 
+    const docker = allocationProviderReadiness?.enabled()
+      ? await this.checkDependency(allocationProviderReadiness.dependencyName, () => allocationProviderReadiness.check())
+      : undefined
+
     return {
       postgres,
       redis,
       nats,
+      ...(docker ? { docker } : {}),
     }
   }
 

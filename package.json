@@ -32,9 +32,11 @@
     "docker:up": "docker compose up --build",
     "docker:dev": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up",
     "docker:dev:build": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build",
+    "docker:build:test-game-server": "docker build -t game-center/test-game-server:p03 -f infrastructure/docker/test-game-server/Dockerfile infrastructure/docker/test-game-server",
     "docker:down": "docker compose -f docker-compose.yml -f docker-compose.dev.yml down --remove-orphans",
     "docker:logs": "docker compose -f docker-compose.yml -f docker-compose.dev.yml logs -f",
     "docker:reset": "docker compose -f docker-compose.yml -f docker-compose.dev.yml down -v --remove-orphans",
+    "test:integration:docker": "npm run docker:build:test-game-server && npm --workspace @game-center/platform-api run test:integration:docker",
     "ci:quality": "npm run lint && npm run typecheck && npm run validate && npm run test:unit && npm run build"
   },
   "devDependencies": {

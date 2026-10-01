@@ -42,7 +42,7 @@ export class AllocationsService implements SessionAllocationOrchestrator {
 
   async requestAllocation(input: SessionAllocationCommand): Promise<GameServerAllocation> {
     const allocation = await this.insertOrReuseRequestedAllocation(input)
-    const current = await this.materializeExpiryOnAccess(allocation)
+    const current = await this.reconcileAllocationOnAccess(await this.materializeExpiryOnAccess(allocation))
 
     if (current.status === 'ready') {
       return this.composeAllocation(current)
@@ -69,14 +69,11 @@ export class AllocationsService implements SessionAllocationOrchestrator {
         claimed.claimed
           ? await provider.allocate(this.toAllocationRequest(claimed.allocation))
           : claimed.allocation.status === 'provisioning'
-          ? (await provider.getAllocation({
-              allocationId: claimed.allocation.allocationId,
-              providerReference: claimed.allocation.providerReference,
-            })) ?? {
-              providerReference: claimed.allocation.providerReference,
-              status: 'provisioning',
-              connection: null,
-            }
+          ?
+              (await provider.getAllocation({
+                allocationId: claimed.allocation.allocationId,
+                providerReference: claimed.allocation.providerReference,
+              })) ?? (await provider.allocate(this.toAllocationRequest(claimed.allocation)))
           : await provider.allocate(this.toAllocationRequest(claimed.allocation))
 
       const updated = await this.persistProviderResult(claimed.allocation.allocationId, providerResult)
@@ -119,7 +116,7 @@ export class AllocationsService implements SessionAllocationOrchestrator {
       return null
     }
 
-    return this.composeAllocation(await this.materializeExpiryOnAccess(allocation))
+    return this.composeAllocation(await this.reconcileAllocationOnAccess(await this.materializeExpiryOnAccess(allocation)))
   }
 
   async releaseAllocation(sessionId: string): Promise<GameServerAllocation | null> {
@@ -387,6 +384,42 @@ export class AllocationsService implements SessionAllocationOrchestrator {
       this.handlePostgresError(error)
       throw error
     })
+  }
+
+  private async reconcileAllocationOnAccess(allocation: DurableGameServerAllocation) {
+    if (allocation.status !== 'provisioning' && allocation.status !== 'ready') {
+      return allocation
+    }
+
+    const provider = this.allocatorRegistry.get(allocation.provider)
+
+    try {
+      const result = await provider.getAllocation({
+        allocationId: allocation.allocationId,
+        providerReference: allocation.providerReference,
+      })
+
+      if (!result) {
+        if (allocation.status === 'provisioning') {
+          return allocation
+        }
+
+        return this.markFailed(allocation.allocationId, 'ALLOCATION_PROVIDER_FAILED')
+      }
+
+      if (allocation.status === 'ready' && result.status === 'ready') {
+        return allocation
+      }
+
+      return this.persistProviderResult(allocation.allocationId, result)
+    } catch (error) {
+      if (this.isAvailabilityError(error)) {
+        throw new SessionAllocationError('ALLOCATION_UNAVAILABLE')
+      }
+
+      const failureCode = error instanceof AllocationProviderError ? error.failureCode : 'ALLOCATION_PROVIDER_FAILED'
+      return this.markFailed(allocation.allocationId, failureCode)
+    }
   }
 
   private async markFailed(allocationId: string, failureCode: AllocationFailureCode) {

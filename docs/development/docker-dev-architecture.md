@@ -132,6 +132,7 @@ gateway
 
 platform-api
   waits for postgres / redis / nats readiness as required
+  optionally includes Docker allocator readiness when `ALLOCATION_PROVIDER=docker`
 
 web
   can start independently, but API functionality depends on gateway-routed services
@@ -173,6 +174,12 @@ continue development
 - nats
 - minio
 
+### On-demand in P03
+
+- dedicated Docker game-server containers created by the allocation module only when `ALLOCATION_PROVIDER=docker`
+- a dedicated `game-center-game-servers` network for managed DEV/CI game servers
+- a test game-server image used by the Docker integration suite and manual smoke proofs
+
 ### Planned later, not yet implemented
 
 - realtime-gateway
@@ -187,3 +194,4 @@ continue development
 3. Platform API design must not expose Docker-specific assumptions directly.
 4. Translation validation and architecture validation commands must run cleanly inside the standard workspace toolchain.
 5. Desktop and mobile architectures are defined before implementation; no empty runtime shells are required in this slice.
+6. Docker-backed game allocation is explicit opt-in for DEV/CI and must not silently replace provider-neutral failure semantics in stable runtime.

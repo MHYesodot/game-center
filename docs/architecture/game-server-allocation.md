@@ -1,16 +1,18 @@
 # Game Server Allocation Architecture
 
-Status: Accepted source of truth for P02 GameServerAllocator Abstraction
+Status: Accepted source of truth for P03 Docker DEV Game Allocator
 
 ## Purpose
 
-P02 makes allocation a real persisted domain boundary without starting real Docker or Kubernetes provisioning.
+P02 established the provider-neutral allocation boundary. P03 keeps that contract intact while adding the first real Docker-backed provider for DEV and CI.
 
 - PostgreSQL is the durable source of truth for allocation identity, provider selection, state, runtime artifact snapshot, release progress, and connection metadata when an allocator reaches `ready`.
 - Sessions owns gameplay-session lifecycle truth.
 - Allocations owns provider/resource lifecycle truth.
 - Catalog remains the source of runtime/build metadata, but Allocations may read it only through `CatalogAllocationArtifactQuery`.
-- Stable runtime uses the explicit `unavailable` provider; deterministic `test` behavior exists only for tests and integration harnesses.
+- Stable runtime still defaults to the explicit `unavailable` provider.
+- Deterministic `test` behavior exists only for tests and integration harnesses.
+- Real Docker provisioning exists only behind the explicit `docker` provider selection.
 
 ## Ownership Boundary
 
@@ -41,6 +43,8 @@ This keeps lifecycle truth separated: Session does not own provider release stat
 - provider lookup: `GameServerAllocatorRegistry`
 
 Allocations does not import Session repositories or Catalog repositories in production code.
+
+Only allocation infrastructure may import container-runtime SDKs such as `dockerode`. Other platform modules and outer allocation layers must stay provider-neutral.
 
 ## Durable / Ephemeral / Derived Matrix
 
@@ -112,6 +116,19 @@ Terminal states:
 - `claimProvisioning(allocationId)` moves exactly one `requested` row to `provisioning` under lock before provider invocation.
 - The provider request carries the durable `allocationId` as the idempotency key.
 - If provider success occurs but ready persistence fails, the row remains durable `provisioning`; retry reuses the same row and calls `provider.getAllocation(...)` before allocating again.
+- The Docker provider uses a deterministic container name derived from `allocationId`, so same-session retries and concurrent callers converge on one managed container.
+
+## Docker DEV Provider
+
+P03 adds an explicit Docker provider for DEV and CI only.
+
+- provider selection supports `unavailable`, `test`, and `docker`
+- Docker is never the silent universal default; operators must set `ALLOCATION_PROVIDER=docker`
+- runtime SDK access is confined to `services/platform-api/src/modules/allocations/infrastructure`
+- each managed container carries deterministic labels for allocation, session, game, version, and protocol metadata
+- the connection descriptor uses the configured public host plus the dynamically published host port for the container's internal game port
+- provider readiness affects `/health/ready` only when the Docker provider is enabled
+- orphan cleanup removes only labeled managed containers that are no longer backed by an active durable Docker allocation
 
 ## Failure And Recovery Semantics
 
@@ -131,6 +148,8 @@ Terminal states:
 - durable state converges to `ready` when persistence recovers
 
 This is the process-crash-equivalent recovery path for P02.
+
+P03 extends recovery by reconciling durable `provisioning` and `ready` rows against provider state on access. If a durable `ready` row no longer has a live provider allocation, the row converges to durable failure rather than exposing stale connection data.
 
 ## Session Relation
 
@@ -159,11 +178,9 @@ Security rules in the current implementation:
 - logs record allocation lifecycle events but do not log connection credentials
 - token support is only a nullable reference field today; no raw bearer token issuance flow exists in P02
 
-## Explicit P02 Non-Goals
+## Explicit P03 Non-Goals
 
-- no Docker container creation, start, stop, or cleanup
-- no Docker socket access
-- no dynamic host port assignment
-- no container labels or container health probes
-- no Kubernetes client or Agones SDK integration
-- no fake runtime endpoint in stable runtime
+- no Kubernetes or Agones allocator
+- no production fleet scheduler or multi-region placement
+- no allocator-owned gameplay state
+- no silent replacement of the stable `unavailable` default
