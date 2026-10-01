@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import type { Pool } from 'pg'
 
+import { CATALOG_ALLOCATION_ARTIFACT_QUERY } from '../../boundaries/catalog-allocation-artifact-query.js'
 import { CATALOG_QUERY_SERVICE } from '../../boundaries/catalog-query.js'
 import { CatalogService } from './application/catalog.service.js'
 import { CatalogController } from './transport/catalog.controller.js'
@@ -31,7 +32,11 @@ import * as catalogSchema from './infrastructure/persistence/schema/catalog.sche
       provide: CATALOG_QUERY_SERVICE,
       useExisting: CatalogService,
     },
+    {
+      provide: CATALOG_ALLOCATION_ARTIFACT_QUERY,
+      useExisting: CatalogService,
+    },
   ],
-  exports: [CATALOG_QUERY_SERVICE],
+  exports: [CATALOG_QUERY_SERVICE, CATALOG_ALLOCATION_ARTIFACT_QUERY],
 })
 export class CatalogModule {}

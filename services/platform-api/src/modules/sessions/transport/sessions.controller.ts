@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Param, Post, Req } from '@nestjs/common'
-import type { CreateSessionRequest, GameSession } from '@game-center/contracts'
+import type { CreateSessionRequest, GameServerAllocation, GameSession } from '@game-center/contracts'
 import type { Request } from 'express'
 
 import { SessionsService } from '../application/sessions.service.js'
@@ -19,6 +19,23 @@ export class SessionsController {
   @Get(':sessionId')
   getSession(@Param('sessionId') sessionId: string, @Req() request: Request): Promise<GameSession> {
     return this.sessionsService.getSession(sessionId, requireSessionIdentity(request))
+  }
+
+  @Post(':sessionId/allocation')
+  @HttpCode(HttpStatus.OK)
+  requestAllocation(@Param('sessionId') sessionId: string, @Req() request: Request): Promise<GameServerAllocation> {
+    return this.sessionsService.requestAllocation(sessionId, requireSessionIdentity(request))
+  }
+
+  @Get(':sessionId/allocation')
+  getAllocation(@Param('sessionId') sessionId: string, @Req() request: Request): Promise<GameServerAllocation> {
+    return this.sessionsService.getAllocation(sessionId, requireSessionIdentity(request))
+  }
+
+  @Post(':sessionId/allocation/release')
+  @HttpCode(HttpStatus.OK)
+  releaseAllocation(@Param('sessionId') sessionId: string, @Req() request: Request): Promise<GameServerAllocation> {
+    return this.sessionsService.releaseAllocation(sessionId, requireSessionIdentity(request))
   }
 
   @Post(':sessionId/cancel')

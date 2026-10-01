@@ -219,16 +219,59 @@ export function buildGameServerAllocation(
   const base: GameServerAllocation = {
     allocationId: 'alloc-signal-grid-1',
     sessionId: 'session-signal-grid-1',
-    state: 'ready',
-    endpoint: 'ws://signal-grid.dev/session-signal-grid-1',
-    transport: 'ws',
-    occurredAt: fixedIso('2026-09-29T10:04:30Z'),
-    serverInstanceId: 'dev-server-signal-grid-1',
-    region: 'dev-local',
+    provider: 'test',
+    providerReference: 'test-provider-ref-1',
+    status: 'ready',
+    artifact: {
+      artifactId: 'signal-grid:0.1.0-prototype:prototype',
+      gameId: 'signal-grid',
+      gameVersion: '0.1.0-prototype',
+      protocolVersion: 'v1',
+      buildVersion: 'prototype',
+      serverType: 'dedicated',
+      runtimeType: 'container',
+    },
+    runtimeRequirements: {
+      runtimeProfile: 'dedicated-server',
+      region: 'dev-local',
+      participantCapacity: 2,
+    },
+    connection: {
+      transport: 'websocket',
+      host: 'signal-grid.dev',
+      port: 443,
+      secure: true,
+      protocolVersion: 'v1',
+      tokenReference: 'token-ref-1',
+      expiresAt: fixedIso('2026-09-29T10:14:30Z'),
+    },
+    requestedAt: fixedIso('2026-09-29T10:04:00Z'),
+    provisioningAt: fixedIso('2026-09-29T10:04:05Z'),
+    readyAt: fixedIso('2026-09-29T10:04:30Z'),
+    failedAt: null,
+    releasingAt: null,
+    releasedAt: null,
+    expiresAt: fixedIso('2026-09-29T10:15:00Z'),
+    failureCode: null,
   }
 
   return {
     ...base,
     ...overrides,
+    artifact: {
+      ...base.artifact,
+      ...overrides.artifact,
+    },
+    runtimeRequirements: {
+      ...base.runtimeRequirements,
+      ...overrides.runtimeRequirements,
+    },
+    connection:
+      overrides.connection === null
+        ? null
+        : {
+            ...base.connection,
+            ...overrides.connection,
+          },
   }
 }

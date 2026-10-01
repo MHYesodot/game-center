@@ -1,6 +1,7 @@
 import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common'
 import type { CatalogErrorResponse, CatalogGameResponse, CatalogListResponse } from '@game-center/contracts'
 
+import type { CatalogAllocationArtifactQuery, CatalogGameServerArtifact } from '../../../boundaries/catalog-allocation-artifact-query.js'
 import type { CatalogGameForLobby, CatalogQueryService } from '../../../boundaries/catalog-query.js'
 import { isPostgresDependencyError, logDependencyDown } from '../../../infrastructure/dependency-health.js'
 
@@ -11,7 +12,7 @@ import {
 } from '../domain/catalog-game.js'
 
 @Injectable()
-export class CatalogService implements CatalogQueryService {
+export class CatalogService implements CatalogQueryService, CatalogAllocationArtifactQuery {
   constructor(@Inject(CATALOG_REPOSITORY) private readonly catalogRepository: CatalogRepository) {}
 
   async listGames(): Promise<CatalogListResponse> {
@@ -53,6 +54,23 @@ export class CatalogService implements CatalogQueryService {
       platforms: {
         ...game.activeVersion.platforms,
       },
+    }
+  }
+
+  async getGameServerArtifact(gameId: string): Promise<CatalogGameServerArtifact | null> {
+    const game = await this.readCatalogOrThrowUnavailable(() => this.catalogRepository.getGameById(gameId))
+
+    if (!game) {
+      return null
+    }
+
+    return {
+      gameId: game.definition.gameId,
+      gameVersion: game.activeVersion.gameVersion,
+      protocolVersion: game.activeVersion.protocolVersion,
+      buildVersion: game.activeVersion.buildVersion,
+      serverType: game.activeVersion.runtime.serverType,
+      runtimeType: game.activeVersion.runtime.serverType === 'dedicated' ? 'external' : 'process',
     }
   }
 

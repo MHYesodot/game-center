@@ -11,7 +11,12 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { validateEnv } from './infrastructure/config/env.schema.js'
 import { InfrastructureModule } from './infrastructure/infrastructure.module.js'
 import { CatalogModule } from './modules/catalog/catalog.module.js'
-import { createCatalogPool, migrateCatalogDatabase } from './modules/catalog/infrastructure/persistence/catalog.persistence.js'
+import {
+  createCatalogDatabase,
+  createCatalogPool,
+  migrateCatalogDatabase,
+  seedCatalogReferenceDataWithClient,
+} from './modules/catalog/infrastructure/persistence/catalog.persistence.js'
 import { MatchmakingModule } from './modules/matchmaking/matchmaking.module.js'
 import { PostgresMatchmakingRepository } from './modules/matchmaking/infrastructure/persistence/repositories/postgres-matchmaking.repository.js'
 import { createMatchmakingDatabase } from './modules/matchmaking/infrastructure/persistence/matchmaking.persistence.js'
@@ -55,7 +60,7 @@ describe('session http integration', () => {
 
     expect(createResponse.status).toBe(200)
     const created = (await createResponse.json()) as { sessionId: string; status: string; participants: Array<{ playerId: string }> }
-    expect(created.status).toBe('allocating')
+    expect(created.status).toBe('ready')
     expect(created.participants.map((participant) => participant.playerId)).toEqual(['player-1', 'player-2'])
 
     const getResponse = await fetch(`${testApp.baseUrl}/api/sessions/${created.sessionId}`, {
@@ -96,6 +101,7 @@ describe('session http integration', () => {
     const stored = await testApp.sessionRepository.getByMatchId('match-2')
     expect(stored).not.toBeNull()
     expect(stored?.sessionId).toBe(leftBody.sessionId)
+    expect(stored?.status).toBe('ready')
   }, 15_000)
 
   it('rejects reads from non-participants', async () => {
@@ -118,6 +124,43 @@ describe('session http integration', () => {
     expect(getResponse.status).toBe(404)
     expect(await getResponse.json()).toEqual({ code: 'SESSION_NOT_FOUND' })
   }, 15_000)
+
+  it('serves session-scoped allocation reads and idempotent release', async () => {
+    const testApp = await createSessionTestApplication()
+    cleanups.push(testApp.cleanup)
+
+    await seedMatchedProposal(testApp.matchmakingRepository, 'match-4')
+
+    const createResponse = await fetch(`${testApp.baseUrl}/api/sessions`, {
+      method: 'POST',
+      headers: jsonHeaders('player-1'),
+      body: JSON.stringify({ matchId: 'match-4' }),
+    })
+    const created = (await createResponse.json()) as { sessionId: string }
+
+    const getAllocation = await fetch(`${testApp.baseUrl}/api/sessions/${created.sessionId}/allocation`, {
+      headers: jsonHeaders('player-2'),
+    })
+    expect(getAllocation.status).toBe(200)
+
+    const allocation = (await getAllocation.json()) as { status: string; connection: { host: string } | null }
+    expect(allocation.status).toBe('ready')
+    expect(allocation.connection?.host).toBe('test.game.local')
+
+    const release = await fetch(`${testApp.baseUrl}/api/sessions/${created.sessionId}/allocation/release`, {
+      method: 'POST',
+      headers: jsonHeaders('player-1'),
+    })
+    expect(release.status).toBe(200)
+    expect((await release.json()) as { status: string }).toMatchObject({ status: 'released' })
+
+    const repeatedRelease = await fetch(`${testApp.baseUrl}/api/sessions/${created.sessionId}/allocation/release`, {
+      method: 'POST',
+      headers: jsonHeaders('player-1'),
+    })
+    expect(repeatedRelease.status).toBe(200)
+    expect((await repeatedRelease.json()) as { status: string }).toMatchObject({ status: 'released' })
+  }, 15_000)
 })
 
 async function createSessionTestApplication() {
@@ -126,6 +169,7 @@ async function createSessionTestApplication() {
   const pool = createCatalogPool(database.connectionString)
 
   await migrateCatalogDatabase(database.connectionString)
+  await seedCatalogReferenceDataWithClient(createCatalogDatabase(pool))
 
   const app = await createTestApplication(database.connectionString, redis.namespace)
   const baseUrl = await listenOnRandomPort(app)
@@ -155,6 +199,7 @@ async function createTestApplication(connectionString: string, runtimeNamespace:
     CORS_ORIGIN: process.env.CORS_ORIGIN,
     PORT: process.env.PORT,
     MATCHMAKING_QUEUE_NAMESPACE: process.env.MATCHMAKING_QUEUE_NAMESPACE,
+    ALLOCATION_PROVIDER: process.env.ALLOCATION_PROVIDER,
   }
 
   process.env.NODE_ENV = 'test'
@@ -164,6 +209,7 @@ async function createTestApplication(connectionString: string, runtimeNamespace:
   process.env.CORS_ORIGIN = 'http://127.0.0.1:0'
   process.env.PORT = '3002'
   process.env.MATCHMAKING_QUEUE_NAMESPACE = runtimeNamespace
+  process.env.ALLOCATION_PROVIDER = 'test'
 
   cleanups.push(async () => {
     restoreEnvironment(previousEnvironment)

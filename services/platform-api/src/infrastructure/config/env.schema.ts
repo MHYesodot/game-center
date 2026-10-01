@@ -7,6 +7,7 @@ const baseEnvSchema = z.object({
   REDIS_URL: z.string().min(1).optional(),
   NATS_URL: z.string().min(1).optional(),
   CORS_ORIGIN: z.string().min(1).optional(),
+  ALLOCATION_PROVIDER: z.enum(['unavailable', 'test']).default('unavailable'),
 })
 
 export function validateEnv(environment: Record<string, unknown>) {

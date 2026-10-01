@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { CreateSessionRequest, MatchReadyPayload } from '@game-center/contracts'
+import type { CreateSessionRequest, GameServerAllocation, MatchReadyPayload } from '@game-center/contracts'
 
 import type { MatchReadyQuery } from '../../../boundaries/match-ready-query.js'
 import type { Clock } from '../../../boundaries/clock.js'
@@ -38,6 +38,14 @@ describe('SessionsService', () => {
         playerIds: ['player-1', 'player-2'],
       }),
     ])
+  })
+
+  it('transitions the session to ready when allocation returns ready immediately', async () => {
+    const harness = createHarness({ allocationStatus: 'ready' })
+
+    const session = await harness.service.createSession(identity('player-1'), { matchId: 'match-1' })
+
+    expect(session.status).toBe('ready')
   })
 
   it('keeps create idempotent for an existing authorized participant', async () => {
@@ -104,10 +112,11 @@ function createHarness(options: {
   allocationFailure?: Error
   repositoryFailure?: Error
   matchReady?: MatchReadyPayload | null
+  allocationStatus?: GameServerAllocation['status']
 } = {}) {
   const now = '2026-09-30T11:00:00.000Z'
   const repository = new InMemorySessionRepository(options.session, options.repositoryFailure)
-  const allocation = new FakeSessionAllocationPort(options.allocationFailure)
+  const allocation = new FakeSessionAllocationPort(options.allocationFailure, options.allocationStatus)
   const matchReadyQuery: MatchReadyQuery = {
     async getMatchReady(matchId: string) {
       if (options.matchReady !== undefined) {
@@ -186,14 +195,66 @@ class InMemorySessionRepository implements SessionRepository {
 class FakeSessionAllocationPort implements SessionAllocationPort {
   readonly requests: Array<{ sessionId: string; matchId: string; playerIds: string[] }> = []
 
-  constructor(private readonly failure?: Error) {}
+  constructor(
+    private readonly failure?: Error,
+    private readonly status: GameServerAllocation['status'] = 'provisioning',
+  ) {}
 
-  async requestAllocation(input: { sessionId: string; matchId: string; playerIds: string[] }): Promise<void> {
+  async requestAllocation(input: { sessionId: string; matchId: string; playerIds: string[] }): Promise<GameServerAllocation> {
     if (this.failure) {
       throw this.failure
     }
 
     this.requests.push(input)
+    return {
+      allocationId: 'allocation-1',
+      sessionId: input.sessionId,
+      provider: 'test',
+      providerReference: 'provider-1',
+      status: this.status,
+      artifact: {
+        artifactId: 'signal-grid:0.1.0-prototype:prototype',
+        gameId: 'signal-grid',
+        gameVersion: '0.1.0-prototype',
+        protocolVersion: 'v1',
+        buildVersion: 'prototype',
+        serverType: 'dedicated',
+        runtimeType: 'external',
+      },
+      runtimeRequirements: {
+        runtimeProfile: 'dedicated-server',
+        region: null,
+        participantCapacity: 2,
+      },
+      connection:
+        this.status === 'ready'
+          ? {
+              transport: 'websocket',
+              host: 'test.game.local',
+              port: 7443,
+              secure: true,
+              protocolVersion: 'v1',
+              tokenReference: 'token-ref-1',
+              expiresAt: null,
+            }
+          : null,
+      requestedAt: '2026-09-30T11:00:00.000Z',
+      provisioningAt: this.status === 'ready' ? '2026-09-30T11:00:01.000Z' : '2026-09-30T11:00:00.000Z',
+      readyAt: this.status === 'ready' ? '2026-09-30T11:00:02.000Z' : null,
+      failedAt: null,
+      releasingAt: null,
+      releasedAt: null,
+      expiresAt: '2026-09-30T11:15:00.000Z',
+      failureCode: null,
+    }
+  }
+
+  async getAllocation(): Promise<GameServerAllocation | null> {
+    return null
+  }
+
+  async releaseAllocation(): Promise<GameServerAllocation | null> {
+    return null
   }
 }
 

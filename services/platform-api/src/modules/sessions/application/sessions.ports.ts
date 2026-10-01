@@ -1,4 +1,6 @@
-import type { SessionFailureCode } from '@game-center/contracts'
+import type { GameServerAllocation, SessionFailureCode } from '@game-center/contracts'
+
+import type { SessionAllocationCommand } from '../../../boundaries/session-allocation-orchestrator.js'
 
 import type { DurableGameSession, DurableGameSessionAggregate, DurableSessionParticipant } from '../domain/game-session.js'
 
@@ -9,19 +11,7 @@ export type CreateSessionRecordInput = DurableGameSession & {
   participants: DurableSessionParticipant[]
 }
 
-export type SessionAllocationRequest = {
-  sessionId: string
-  matchId: string
-  proposalId: string
-  gameId: string
-  queueType: DurableGameSession['queueType']
-  platform: DurableGameSession['platform']
-  region: string | null
-  gameVersion: string
-  protocolVersion: string
-  playerIds: string[]
-  requestedAt: string
-}
+export type SessionAllocationRequest = SessionAllocationCommand
 
 export interface SessionRepositoryTransaction {
   getById(sessionId: string): Promise<DurableGameSessionAggregate | null>
@@ -39,7 +29,9 @@ export interface SessionRepository {
 }
 
 export interface SessionAllocationPort {
-  requestAllocation(input: SessionAllocationRequest): Promise<void>
+  requestAllocation(input: SessionAllocationRequest): Promise<GameServerAllocation>
+  getAllocation(sessionId: string): Promise<GameServerAllocation | null>
+  releaseAllocation(sessionId: string): Promise<GameServerAllocation | null>
 }
 
 export type SessionFailureTransition = {

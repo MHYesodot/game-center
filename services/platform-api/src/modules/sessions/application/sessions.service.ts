@@ -2,6 +2,7 @@ import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common'
 import type {
   CreateSessionRequest,
   GameSession,
+  GameServerAllocation,
   MatchReadyPayload,
   SessionErrorCode,
   SessionFailureCode,
@@ -9,6 +10,7 @@ import type {
 } from '@game-center/contracts'
 
 import { MATCH_READY_QUERY, type MatchReadyQuery } from '../../../boundaries/match-ready-query.js'
+import { SessionAllocationError } from '../../../boundaries/session-allocation-orchestrator.js'
 import { type SessionMatchReadyHandler } from '../../../boundaries/session-match-ready-handler.js'
 import { type Clock, CLOCK } from '../../../boundaries/clock.js'
 import { type IdGenerator, ID_GENERATOR } from '../../../boundaries/id-generator.js'
@@ -63,6 +65,54 @@ export class SessionsService implements SessionMatchReadyHandler {
     const session = await this.requireSession(sessionId)
     const authorized = this.requireParticipant(session, identity.playerId)
     return this.composeSession(authorized)
+  }
+
+  async requestAllocation(sessionId: string, identity: SessionRequestIdentity): Promise<GameServerAllocation> {
+    const session = await this.requireSession(sessionId)
+    const authorized = this.requireParticipant(session, identity.playerId)
+
+    try {
+      return await this.requestAllocationForSession(authorized, identity.requestId)
+    } catch (error) {
+      this.handleAllocationError(error)
+      throw error
+    }
+  }
+
+  async getAllocation(sessionId: string, identity: SessionRequestIdentity): Promise<GameServerAllocation> {
+    const session = await this.requireSession(sessionId)
+    this.requireParticipant(session, identity.playerId)
+
+    try {
+      const allocation = await this.sessionAllocationPort.getAllocation(sessionId)
+
+      if (!allocation) {
+        throw new SessionAllocationError('ALLOCATION_NOT_FOUND')
+      }
+
+      return allocation
+    } catch (error) {
+      this.handleAllocationError(error)
+      throw error
+    }
+  }
+
+  async releaseAllocation(sessionId: string, identity: SessionRequestIdentity): Promise<GameServerAllocation> {
+    const session = await this.requireSession(sessionId)
+    this.requireParticipant(session, identity.playerId)
+
+    try {
+      const allocation = await this.sessionAllocationPort.releaseAllocation(sessionId)
+
+      if (!allocation) {
+        throw new SessionAllocationError('ALLOCATION_NOT_FOUND')
+      }
+
+      return allocation
+    } catch (error) {
+      this.handleAllocationError(error)
+      throw error
+    }
   }
 
   async cancelSession(sessionId: string, identity: SessionRequestIdentity): Promise<GameSession> {
@@ -194,23 +244,19 @@ export class SessionsService implements SessionMatchReadyHandler {
 
     if (claimed.claimed) {
       try {
-        await this.sessionAllocationPort.requestAllocation({
-          sessionId: claimed.session.sessionId,
-          matchId: claimed.session.matchId,
-          proposalId: claimed.session.proposalId,
-          gameId: claimed.session.gameId,
-          queueType: claimed.session.queueType,
-          platform: claimed.session.platform,
-          region: claimed.session.region,
-          gameVersion: claimed.session.gameVersion,
-          protocolVersion: claimed.session.protocolVersion,
-          playerIds: claimed.session.participants.map((participant) => participant.playerId),
-          requestedAt: this.clock.now().toISOString(),
-        })
+        const allocation = await this.requestAllocationForSession(claimed.session, requestId)
+
+        if (allocation.status === 'ready') {
+          const ready = await this.transitionSessionToReady(claimed.session.sessionId)
+          return ready
+        }
       } catch (error) {
-        const failed = await this.failSession(claimed.session.sessionId, 'ALLOCATION_REQUEST_FAILED', requestId)
+        if (error instanceof SessionAllocationError && error.code === 'ALLOCATION_UNAVAILABLE') {
+          this.throwSessionError('SESSION_UNAVAILABLE', HttpStatus.SERVICE_UNAVAILABLE)
+        }
+
+        await this.failSession(claimed.session.sessionId, 'ALLOCATION_REQUEST_FAILED', requestId)
         this.throwSessionError('SESSION_CREATION_FAILED', HttpStatus.CONFLICT)
-        return failed
       }
 
       this.logSessionEvent('session_transitioned', { playerId: null, requestId }, {
@@ -221,6 +267,28 @@ export class SessionsService implements SessionMatchReadyHandler {
     }
 
     return claimed.session
+  }
+
+  private async requestAllocationForSession(session: DurableGameSessionAggregate, requestId: string | null): Promise<GameServerAllocation> {
+    return this.sessionAllocationPort.requestAllocation(this.toSessionAllocationRequest(session, requestId))
+  }
+
+  private toSessionAllocationRequest(session: DurableGameSessionAggregate, requestId: string | null) {
+    return {
+      sessionId: session.sessionId,
+      matchId: session.matchId,
+      proposalId: session.proposalId,
+      gameId: session.gameId,
+      queueType: session.queueType,
+      platform: session.platform,
+      region: session.region,
+      gameVersion: session.gameVersion,
+      protocolVersion: session.protocolVersion,
+      playerIds: session.participants.map((participant) => participant.playerId),
+      participantCapacity: session.participants.length,
+      requestedAt: requestId ? this.clock.now().toISOString() : session.updatedAt,
+      expiresAt: session.expiresAt,
+    }
   }
 
   private async claimAllocationRequest(sessionId: string): Promise<{ session: DurableGameSessionAggregate; claimed: boolean }> {
@@ -304,6 +372,41 @@ export class SessionsService implements SessionMatchReadyHandler {
     })
 
     return failed
+  }
+
+  private async transitionSessionToReady(sessionId: string) {
+    const now = this.clock.now().toISOString()
+
+    return this.sessionRepository.withTransaction(async (transaction) => {
+      const current = await transaction.getByIdForUpdate(sessionId)
+
+      if (!current) {
+        this.throwSessionError('SESSION_NOT_FOUND', HttpStatus.NOT_FOUND)
+      }
+
+      if (current.status === 'ready') {
+        return current
+      }
+
+      if (!canTransitionSession(current.status, 'ready')) {
+        return current
+      }
+
+      const updated: DurableGameSession = {
+        ...current,
+        status: 'ready',
+        updatedAt: now,
+      }
+
+      await transaction.updateSession(updated)
+      return {
+        ...updated,
+        participants: current.participants,
+      }
+    }).catch((error) => {
+      this.handlePostgresError(error)
+      throw error
+    })
   }
 
   private async requireSession(sessionId: string) {
@@ -451,6 +554,32 @@ export class SessionsService implements SessionMatchReadyHandler {
     if (isPostgresDependencyError(error)) {
       logDependencyDown('postgres', error, 'SessionsService')
       this.throwSessionError('SESSION_UNAVAILABLE', HttpStatus.SERVICE_UNAVAILABLE)
+    }
+  }
+
+  private handleAllocationError(error: unknown): never | void {
+    if (!(error instanceof SessionAllocationError)) {
+      return
+    }
+
+    if (error.code === 'ALLOCATION_NOT_FOUND') {
+      throw new HttpException({ code: 'ALLOCATION_NOT_FOUND' }, HttpStatus.NOT_FOUND)
+    }
+
+    if (error.code === 'ALLOCATION_UNAVAILABLE') {
+      throw new HttpException({ code: 'ALLOCATION_UNAVAILABLE' }, HttpStatus.SERVICE_UNAVAILABLE)
+    }
+
+    if (error.code === 'ALLOCATION_ALREADY_RELEASED') {
+      throw new HttpException({ code: 'ALLOCATION_ALREADY_RELEASED' }, HttpStatus.OK)
+    }
+
+    if (error.code === 'ALLOCATION_INVALID_STATE') {
+      throw new HttpException({ code: 'ALLOCATION_INVALID_STATE' }, HttpStatus.CONFLICT)
+    }
+
+    if (error.code === 'ALLOCATION_FAILED') {
+      throw new HttpException({ code: 'ALLOCATION_FAILED' }, HttpStatus.CONFLICT)
     }
   }
 
