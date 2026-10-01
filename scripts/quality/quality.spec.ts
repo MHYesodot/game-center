@@ -75,6 +75,16 @@ describe('quality validators', () => {
     expect(result.stderr).toContain('sessions must use matchmaking public boundaries, not matchmaking persistence or runtime internals')
   })
 
+  it('rejects allocation boundary violations', () => {
+    const result = runValidator('validate-architecture.mjs', 'architecture-invalid-allocation-boundaries')
+
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('allocation domain layer must not depend on raw persistence, container, or cluster clients')
+    expect(result.stderr).toContain('allocation application layer must not import provider or persistence implementations directly')
+    expect(result.stderr).toContain('allocation modules must not depend on Session persistence internals')
+    expect(result.stderr).toContain('allocation modules must use the Catalog public boundary, not Catalog persistence internals')
+  })
+
   it('rejects raw design literals outside approved token files', () => {
     const result = runValidator('validate-design.mjs', 'design-invalid')
 

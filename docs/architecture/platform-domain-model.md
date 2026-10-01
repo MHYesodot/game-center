@@ -13,6 +13,7 @@ Status: Accepted source of truth for Foundation Slice 1.1 domain modeling
 | Lobby | Active domain seed | Pre-session room lifecycle, members, readiness, visibility, and launch intent. |
 | Matchmaking | Active persisted domain | Durable matchmaking requests and proposals in PostgreSQL plus ephemeral queue runtime coordination in Redis. |
 | Sessions | Active persisted domain | Durable session lifecycle, participant roster, source-match snapshot, and allocation-request orchestration boundary. |
+| Allocations | Active persisted domain | Provider-neutral durable allocation lifecycle and future runtime handoff metadata in PostgreSQL. |
 
 The intent is explicit: Phase 1 keeps boundary shells only where the business capability is not yet active, while the gameplay-adjacent flow is modeled now as real domains. Catalog, Lobby, Matchmaking, and Sessions are persisted boundaries.
 
@@ -22,7 +23,7 @@ The intent is explicit: Phase 1 keeps boundary shells only where the business ca
 - `Lobby` owns how a group prepares to launch a game.
 - `Matchmaking` owns how queued demand becomes a match.
 - `Sessions` owns post-match durable lifecycle metadata and the boundary to later authoritative game runtime allocation.
-- `Game Server Allocation` is a subdomain boundary of `Sessions`, not a separate top-level module in Phase 1.
+- `Allocations` owns provisioning lifecycle metadata and provider coordination, but does not own gameplay lifecycle.
 - Platform services never own gameplay state, win logic, or simulation state.
 - Platform APIs return domain-safe identifiers, metadata, and error codes rather than translated user messages.
 
@@ -169,26 +170,72 @@ Exit states:
 - Ephemeral in Redis: none in P01.
 - Derived: `expired` status materialized on access from `expiresAt`.
 
-## Game Server Allocation Subdomain
+## Allocation Domain
 
 ### Core Types
 
-- `GameServerAllocationRequest`
+- `AllocationRequest`
 - `GameServerAllocation`
-- `AllocatorDescriptor`
+- `ConnectionDescriptor`
+- `GameServerAllocator`
+- `GameServerAllocatorRegistry`
 
 ### Ownership Rules
 
-- Allocation orchestration belongs to `Sessions`.
-- Actual game runtime provisioning belongs to the allocator implementation.
-- DEV may use a future `docker-dev` allocator.
-- Production is expected to use a Kubernetes/Agones-backed allocator via ADR.
+- `Sessions` owns gameplay orchestration lifecycle truth.
+- `Allocations` owns provisioning/resource lifecycle truth.
+- `Sessions` reaches `Allocations` only through `SessionAllocationPort -> SessionAllocationPortAdapter -> SessionAllocationOrchestrator`.
+- `Allocations` reaches Catalog only through `CatalogAllocationArtifactQuery`.
+- Actual game runtime provisioning belongs to the selected allocator implementation.
 
-### Current Phase 1 Rule
+### Current P02 Rule
 
-- keep allocator as an interface boundary only
-- do not implement real Docker or Kubernetes provisioning in this slice
-- do not fabricate connection metadata before a real allocator exists
+- keep the default runtime provider explicitly unavailable
+- allow a deterministic `test` allocator only for tests and integration harnesses
+- do not implement Docker, Kubernetes, or Agones provisioning in this slice
+- do not fabricate connection metadata in the stable runtime
+
+### Allocation State Contract
+
+Supported states in code:
+
+- `requested`
+- `provisioning`
+- `ready`
+- `failed`
+- `releasing`
+- `released`
+- `expired`
+
+Terminal states:
+
+- `failed`
+- `released`
+- `expired`
+
+### Durable / Ephemeral / Derived Split
+
+| Field / concept | Classification | Storage | Source of truth | Recovery behavior |
+| --- | --- | --- | --- | --- |
+| `allocationId` | Durable | PostgreSQL `game_server_allocations.allocation_id` | PostgreSQL | Stable provider idempotency key across retries. |
+| `sessionId` | Durable | PostgreSQL `game_server_allocations.session_id` | PostgreSQL | Preserves Session-to-allocation ownership and active-row uniqueness. |
+| `provider` | Durable | PostgreSQL `game_server_allocations.provider` | PostgreSQL | Determines which allocator registry entry reconciles or releases the row later. |
+| `providerReference` | Durable when assigned | PostgreSQL `game_server_allocations.provider_reference` | PostgreSQL after persistence | Reused for reconciliation and release once the provider returns it. |
+| `status` | Durable | PostgreSQL `game_server_allocations.status` | PostgreSQL | Materialized as `expired` on access only while pre-ready. |
+| artifact tuple | Durable | PostgreSQL `game_id`, `game_version`, `protocol_version`, `build_version`, `server_type`, `runtime_type` | PostgreSQL snapshot populated from Catalog boundary | Preserved even if Catalog or provider is later unavailable. |
+| `runtimeProfile` | Durable | PostgreSQL `runtime_profile` | PostgreSQL | Reused on retries without recalculating from future provider state. |
+| `requestedAt` | Durable | PostgreSQL `requested_at` | PostgreSQL | Stable across retries; reused as part of the provider request. |
+| `provisioningAt` | Durable | PostgreSQL `provisioning_at` | PostgreSQL | Marks the first claimed provisioning attempt. |
+| `readyAt` | Durable | PostgreSQL `ready_at` | PostgreSQL | Populated only after durable ready persistence succeeds. |
+| `failedAt` | Durable | PostgreSQL `failed_at` | PostgreSQL | Captures durable provider-failure terminalization. |
+| `releasedAt` | Durable | PostgreSQL `released_at` | PostgreSQL | Populated only after provider release succeeds and the row is durably updated. |
+| `expiresAt` | Durable deadline | PostgreSQL `expires_at` | PostgreSQL | Access paths converge stale `requested`/`provisioning` rows to `expired`. |
+| `failureCode` | Durable | PostgreSQL `failure_code` | PostgreSQL | Distinguishes provider unavailability/failure from timeout semantics. |
+| connection host / port / transport / secure / protocol | Durable when ready | PostgreSQL `connection_*` columns | PostgreSQL after ready persistence | Exposed only on `ready`; removed on failed/released paths. |
+| connection token reference | Durable when ready | PostgreSQL `connection_token_reference` | PostgreSQL after ready persistence | Token value is a reference only; no credential secret is logged or fabricated. |
+| token expiry | Durable when ready | PostgreSQL `connection_expires_at` | PostgreSQL after ready persistence | Nullable until a provider supplies it. |
+| provider health | Ephemeral | none | live dependency/readiness checks | Causes semantic `ALLOCATION_UNAVAILABLE` behavior; no durable health row exists. |
+| allocation age | Derived | computed from durable timestamps | Derived from PostgreSQL timestamps | Recomputed on access; not persisted separately. |
 
 ## Sequence Diagrams
 
@@ -213,6 +260,7 @@ sequenceDiagram
     participant Lobby
     participant Matchmaking
     participant Sessions
+    participant Allocations
     participant Allocator as Game Server Allocator
     participant Runtime as Authoritative Game Runtime
 
@@ -220,8 +268,9 @@ sequenceDiagram
     Matchmaking-->>Lobby: proposal accepted
     Matchmaking->>Sessions: trusted match-ready handoff
     Sessions->>Sessions: persist session + participants
-    Sessions->>Allocator: request allocation boundary
-    Note over Allocator,Runtime: concrete runtime provisioning is out of scope in P01
+    Sessions->>Allocations: request allocation through public boundary
+    Allocations->>Allocator: provider-neutral allocation request
+    Note over Allocator,Runtime: concrete Docker or Kubernetes provisioning is deferred beyond P02
 ```
 
 ### Result Reporting
@@ -245,6 +294,7 @@ sequenceDiagram
 | Lobby host disconnects before allocation | Lobby | lobby ownership reassignment or closure |
 | Queue proposal expires | Matchmaking | ticket returns to queue or expires |
 | Allocation request dispatch fails | Sessions | session enters durable `failed` with `ALLOCATION_REQUEST_FAILED` |
+| Provider accepts allocation but durable ready persistence fails | Allocations | allocation remains durable `provisioning` and retries reconcile with same `allocationId` |
 | Runtime never reports heartbeat | Sessions | session marked unhealthy and escalated to allocator or operators |
 | Result payload invalid for contract version | Sessions | reject envelope and preserve session for retry or termination |
 

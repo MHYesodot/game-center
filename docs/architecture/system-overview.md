@@ -32,7 +32,8 @@ Platform API - NestJS Modular Monolith
   |- Social Module
   |- Lobby Module
   |- Matchmaking Module
-  '- Session Module
+  |- Session Module
+  '- Allocation Module
 ```
 
 Each module is a real domain boundary, but all modules run inside one NestJS runtime during Phase 1.
@@ -47,7 +48,8 @@ Current Slice 1.1 module classification:
 | Social | Boundary placeholder | reserved boundary for parties, presence, and graph ownership |
 | Lobby | Active persisted domain | owns durable lobby lifecycle and membership in PostgreSQL plus ephemeral runtime readiness and presence in Redis |
 | Matchmaking | Active persisted domain | owns durable matchmaking requests and proposals in PostgreSQL plus ephemeral Redis queue coordination |
-| Sessions | Active persisted domain | owns durable session lifecycle in PostgreSQL and snapshots trusted matched participants before allocator/runtime integration |
+| Sessions | Active persisted domain | owns durable session lifecycle in PostgreSQL and snapshots trusted matched participants before runtime handoff |
+| Allocations | Active persisted domain | owns durable allocation lifecycle in PostgreSQL and provider-neutral runtime handoff metadata |
 
 Detailed invariants, state machines, event catalog, and ephemeral vs persistent ownership for these domains live in `docs/architecture/platform-domain-model.md`.
 
@@ -130,9 +132,16 @@ Default language and runtime choices are fixed unless an ADR approves an excepti
 
 - Session durable state is now served from PostgreSQL through repository ports owned by the `Sessions` module.
 - Session creation snapshots the trusted matched proposal and participant source request ids from Matchmaking.
-- Sessions is Postgres-only in P01; it does not depend on Redis for source-of-truth behavior.
-- Allocation remains a boundary call only; P01 does not return fabricated runtime endpoint metadata.
+- Sessions does not depend on Redis for source-of-truth behavior.
 - `POST /api/sessions` is idempotent by `matchId`, and `GET /api/sessions/:sessionId` is authorized by persisted participant membership.
+
+## Current Allocation Runtime
+
+- Allocation durable state is served from PostgreSQL through repository ports owned by the `Allocations` module.
+- Allocations obtains artifact and compatibility metadata only through the public Catalog allocation-query boundary.
+- Stable runtime defaults to `ALLOCATION_PROVIDER=unavailable`, which returns semantic allocation failure rather than fabricating a server endpoint.
+- The deterministic `test` provider is used only by test and integration harnesses to prove concurrency, reconciliation, and release behavior.
+- `Allocation ready` projects into Session `ready`, but Session and Allocation remain separate sources of truth for gameplay lifecycle vs provisioning lifecycle.
 
 ## Target System Diagram
 
@@ -175,6 +184,7 @@ flowchart TD
       LOBBY[Lobby Module]
       MATCH[Matchmaking Module]
       SESSION[Session Module]
+      ALLOCATION[Allocation Module]
     end
 
     subgraph Messaging and Data
@@ -211,7 +221,8 @@ flowchart TD
     LOBBY --> REDIS
     MATCH --> REDIS
     SESSION --> PG
-    SESSION --> ALLOCATOR
+    SESSION --> ALLOCATION
+    ALLOCATION --> ALLOCATOR
     ALLOCATOR --> BOARD
     ALLOCATOR --> ARCADE
     ALLOCATOR --> SIM

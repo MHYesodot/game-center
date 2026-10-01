@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { CreateSessionRequest, GameServerAllocation, MatchReadyPayload } from '@game-center/contracts'
+import type { GameServerAllocation, MatchReadyPayload } from '@game-center/contracts'
 
 import type { MatchReadyQuery } from '../../../boundaries/match-ready-query.js'
 import type { Clock } from '../../../boundaries/clock.js'

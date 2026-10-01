@@ -7,7 +7,6 @@ import {
 } from '../../../boundaries/catalog-allocation-artifact-query.js'
 import {
   SessionAllocationError,
-  SESSION_ALLOCATION_ORCHESTRATOR,
   type SessionAllocationCommand,
   type SessionAllocationOrchestrator,
 } from '../../../boundaries/session-allocation-orchestrator.js'

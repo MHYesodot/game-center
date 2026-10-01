@@ -1,7 +1,9 @@
 import { sql } from 'drizzle-orm'
 import { boolean, index, integer, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
-import { gameSessions } from '../../../../sessions/infrastructure/persistence/schema/session.schema.js'
+const gameSessionsReference = pgTable('game_sessions', {
+  sessionId: text('session_id').notNull(),
+})
 
 export const gameServerAllocations = pgTable(
   'game_server_allocations',
@@ -9,7 +11,7 @@ export const gameServerAllocations = pgTable(
     allocationId: text('allocation_id').primaryKey(),
     sessionId: text('session_id')
       .notNull()
-      .references(() => gameSessions.sessionId, { onDelete: 'cascade' }),
+      .references(() => gameSessionsReference.sessionId, { onDelete: 'cascade' }),
     provider: text('provider').notNull(),
     providerReference: text('provider_reference'),
     status: text('status').notNull(),

@@ -23,6 +23,7 @@ const renderedAttributeNames = new Set(['aria-label', 'title', 'placeholder', 'a
 const translationKeyPattern = /^(?:common|navigation|catalog|lobby|matchmaking|errors)\./
 const productionGameMainPattern = /\/games\/production\/[^/]+\/src\/main\.[cm]?[jt]s$/
 const productionGamePathPattern = /\/games\/production\//
+const allocationInfraDependencyPattern = /^(?:drizzle-orm(?:\/|$)|pg$|redis$|dockerode$|@kubernetes\/client-node$|agones(?:$|\/))/
 
 function normalizePath(filePath) {
   return filePath.replace(/\\/g, '/')
@@ -375,6 +376,20 @@ for (const filePath of files) {
     }
 
     if (
+      normalizedFilePath.includes('/services/platform-api/src/modules/allocations/domain/') &&
+      allocationInfraDependencyPattern.test(specifier)
+    ) {
+      violations.push(`${toRelative(filePath)} allocation domain layer must not depend on raw persistence, container, or cluster clients: ${specifier}`)
+    }
+
+    if (
+      normalizedFilePath.includes('/services/platform-api/src/modules/allocations/application/') &&
+      allocationInfraDependencyPattern.test(specifier)
+    ) {
+      violations.push(`${toRelative(filePath)} allocation application layer must not depend on raw persistence, container, or cluster clients: ${specifier}`)
+    }
+
+    if (
       owner.scope === 'games' &&
       productionGamePathPattern.test(normalizedFilePath) &&
       normalizePath(specifier).includes('platform-api/src/')
@@ -414,7 +429,13 @@ for (const filePath of files) {
       violations.push(`${toRelative(filePath)} production games must not import platform API internals: ${specifier}`)
     }
 
-    if (normalizedFilePath.includes('/services/platform-api/src/modules/') && ownerModule && targetModule && ownerModule !== targetModule) {
+    if (
+      normalizedFilePath.includes('/services/platform-api/src/modules/') &&
+      ownerModule &&
+      targetModule &&
+      ownerModule !== targetModule &&
+      !/\.spec\.[cm]?[jt]sx?$/.test(normalizedFilePath)
+    ) {
       violations.push(`${toRelative(filePath)} platform modules must not import another module's internals: ${specifier}`)
     }
 
@@ -437,6 +458,29 @@ for (const filePath of files) {
       normalizedResolved.includes('/services/platform-api/src/modules/matchmaking/infrastructure/')
     ) {
       violations.push(`${toRelative(filePath)} sessions must use matchmaking public boundaries, not matchmaking persistence or runtime internals: ${specifier}`)
+    }
+
+    if (
+      normalizedFilePath.includes('/services/platform-api/src/modules/allocations/application/') &&
+      normalizedResolved.includes('/services/platform-api/src/modules/allocations/infrastructure/')
+    ) {
+      violations.push(`${toRelative(filePath)} allocation application layer must not import provider or persistence implementations directly: ${specifier}`)
+    }
+
+    if (
+      normalizedFilePath.includes('/services/platform-api/src/modules/allocations/') &&
+      !/\.spec\.[cm]?[jt]sx?$/.test(normalizedFilePath) &&
+      normalizedResolved.includes('/services/platform-api/src/modules/sessions/infrastructure/')
+    ) {
+      violations.push(`${toRelative(filePath)} allocation modules must not depend on Session persistence internals: ${specifier}`)
+    }
+
+    if (
+      normalizedFilePath.includes('/services/platform-api/src/modules/allocations/') &&
+      !/\.spec\.[cm]?[jt]sx?$/.test(normalizedFilePath) &&
+      normalizedResolved.includes('/services/platform-api/src/modules/catalog/infrastructure/')
+    ) {
+      violations.push(`${toRelative(filePath)} allocation modules must use the Catalog public boundary, not Catalog persistence internals: ${specifier}`)
     }
 
     if (normalizedFilePath.includes('/services/platform-api/src/modules/') && normalizedFilePath.includes('/domain/')) {

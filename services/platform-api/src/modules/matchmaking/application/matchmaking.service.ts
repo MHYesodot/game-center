@@ -9,7 +9,6 @@ import type {
   MatchReadyPayload,
 } from '@game-center/contracts'
 
-import { MATCH_READY_QUERY, type MatchReadyQuery } from '../../../boundaries/match-ready-query.js'
 import { type CatalogQueryService, CATALOG_QUERY_SERVICE } from '../../../boundaries/catalog-query.js'
 import { type Clock, CLOCK } from '../../../boundaries/clock.js'
 import { type IdGenerator, ID_GENERATOR } from '../../../boundaries/id-generator.js'

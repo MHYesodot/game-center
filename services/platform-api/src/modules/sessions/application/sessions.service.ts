@@ -6,7 +6,6 @@ import type {
   MatchReadyPayload,
   SessionErrorCode,
   SessionFailureCode,
-  SessionStatus,
 } from '@game-center/contracts'
 
 import { MATCH_READY_QUERY, type MatchReadyQuery } from '../../../boundaries/match-ready-query.js'
