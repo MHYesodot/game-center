@@ -7,6 +7,9 @@ const baseEnvSchema = z.object({
   REDIS_URL: z.string().min(1).optional(),
   NATS_URL: z.string().min(1).optional(),
   CORS_ORIGIN: z.string().min(1).optional(),
+  AUTH_SESSION_TTL_MS: z.coerce.number().int().positive().default(30 * 24 * 60 * 60 * 1000),
+  AUTH_REALTIME_TICKET_TTL_MS: z.coerce.number().int().positive().default(60_000),
+  AUTH_GATEWAY_SHARED_SECRET: z.string().min(1).optional(),
   ALLOCATION_PROVIDER: z.enum(['unavailable', 'test', 'docker']).default('unavailable'),
   DOCKER_ALLOCATOR_PUBLIC_HOST: z.string().min(1).default('localhost'),
   DOCKER_ALLOCATOR_INTERNAL_PORT: z.coerce.number().int().positive().default(7777),
@@ -29,8 +32,8 @@ export function validateEnv(environment: Record<string, unknown>) {
     return parsed
   }
 
-  if (!parsed.REDIS_URL || !parsed.NATS_URL || !parsed.CORS_ORIGIN) {
-    throw new Error('REDIS_URL, NATS_URL, and CORS_ORIGIN are required outside test environments.')
+  if (!parsed.REDIS_URL || !parsed.NATS_URL || !parsed.CORS_ORIGIN || !parsed.AUTH_GATEWAY_SHARED_SECRET) {
+    throw new Error('REDIS_URL, NATS_URL, CORS_ORIGIN, and AUTH_GATEWAY_SHARED_SECRET are required outside test environments.')
   }
 
   return parsed

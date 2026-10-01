@@ -10,7 +10,7 @@ Session-scoped allocation APIs currently exposed by `services/platform-api`:
 - `GET /api/sessions/:sessionId/allocation`
 - `POST /api/sessions/:sessionId/allocation/release`
 
-All three routes require a valid `x-player-id` header for an authorized session participant.
+All three routes require an authenticated `gc_session` cookie for an authorized session participant.
 
 ## Runtime Boundary
 

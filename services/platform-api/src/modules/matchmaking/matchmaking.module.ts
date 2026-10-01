@@ -9,6 +9,7 @@ import { ID_GENERATOR } from '../../boundaries/id-generator.js'
 import { MATCH_READY_QUERY } from '../../boundaries/match-ready-query.js'
 import { DATABASE_POOL } from '../../infrastructure/infrastructure.tokens.js'
 import { CatalogQueryModule } from '../../module-bindings/catalog-query.module.js'
+import { AuthModule } from '../auth/auth.module.js'
 import { MatchmakingService } from './application/matchmaking.service.js'
 import { DelegatingMatchReadySink } from './application/delegating-match-ready-sink.js'
 import {
@@ -24,7 +25,7 @@ import * as matchmakingSchema from './infrastructure/persistence/schema/matchmak
 import { RedisMatchmakingQueueStore } from './infrastructure/runtime/redis-matchmaking-queue.store.js'
 
 @Module({
-  imports: [CatalogQueryModule],
+  imports: [CatalogQueryModule, AuthModule],
   controllers: [MatchmakingController],
   providers: [
     MatchmakingService,

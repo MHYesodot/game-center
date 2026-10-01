@@ -85,10 +85,10 @@ P01 transport uses only:
 
 ### `POST /api/sessions`
 
-Headers:
+Auth:
 
-- `x-player-id` required
-- `x-request-id` optional correlation id
+- authenticated `gc_session` cookie required
+- `x-request-id` remains optional correlation id
 
 Body:
 

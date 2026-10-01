@@ -14,21 +14,31 @@ import (
 
 type Client struct {
 	baseURL    string
+	sharedSecret string
 	httpClient *http.Client
 }
 
-func NewClient(baseURL string, timeout time.Duration) *Client {
+type RequestError struct {
+	StatusCode int
+}
+
+func (err RequestError) Error() string {
+	return fmt.Sprintf("platform-api returned status %d", err.StatusCode)
+}
+
+func NewClient(baseURL string, timeout time.Duration, sharedSecret string) *Client {
 	return &Client{
 		baseURL: strings.TrimRight(baseURL, "/"),
+		sharedSecret: strings.TrimSpace(sharedSecret),
 		httpClient: &http.Client{
 			Timeout: timeout,
 		},
 	}
 }
 
-func (client *Client) ResolveIdentity(ctx context.Context, playerID string) (string, error) {
+func (client *Client) ResolveIdentity(ctx context.Context, ticket string) (string, error) {
 	response := contracts.ResolveIdentityResponse{}
-	if err := client.post(ctx, "/api/internal/realtime/identity/resolve", contracts.ResolveIdentityRequest{PlayerID: playerID}, &response); err != nil {
+	if err := client.post(ctx, "/api/internal/realtime/identity/resolve", contracts.ResolveIdentityRequest{Ticket: ticket}, &response); err != nil {
 		return "", err
 	}
 
@@ -74,6 +84,9 @@ func (client *Client) post(ctx context.Context, path string, payload any, result
 		return err
 	}
 	request.Header.Set("Content-Type", "application/json")
+	if client.sharedSecret != "" {
+		request.Header.Set("X-Realtime-Gateway-Secret", client.sharedSecret)
+	}
 
 	response, err := client.httpClient.Do(request)
 	if err != nil {
@@ -82,7 +95,7 @@ func (client *Client) post(ctx context.Context, path string, payload any, result
 	defer response.Body.Close()
 
 	if response.StatusCode >= 400 {
-		return fmt.Errorf("platform-api request %s failed with status %d", path, response.StatusCode)
+		return RequestError{StatusCode: response.StatusCode}
 	}
 
 	if result == nil {

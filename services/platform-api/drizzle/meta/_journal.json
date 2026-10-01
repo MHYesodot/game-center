@@ -36,6 +36,13 @@
       "when": 1790859136615,
       "tag": "0004_unknown_virginia_dare",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790880318911,
+      "tag": "0005_yielding_silver_samurai",
+      "breakpoints": true
     }
   ]
 }

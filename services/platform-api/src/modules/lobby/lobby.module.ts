@@ -8,6 +8,7 @@ import { CLOCK } from '../../boundaries/clock.js'
 import { ID_GENERATOR } from '../../boundaries/id-generator.js'
 import { DATABASE_POOL } from '../../infrastructure/infrastructure.tokens.js'
 import { CatalogQueryModule } from '../../module-bindings/catalog-query.module.js'
+import { AuthModule } from '../auth/auth.module.js'
 import { LobbyService } from './application/lobby.service.js'
 import { LOBBY_REPOSITORY, LOBBY_RUNTIME_STORE } from './application/lobby.ports.js'
 import { PostgresLobbyRepository } from './infrastructure/persistence/repositories/postgres-lobby.repository.js'
@@ -17,7 +18,7 @@ import { LOBBY_DRIZZLE_DB } from './infrastructure/persistence/lobby.persistence
 import * as lobbySchema from './infrastructure/persistence/schema/lobby.schema.js'
 
 @Module({
-  imports: [CatalogQueryModule],
+  imports: [CatalogQueryModule, AuthModule],
   controllers: [LobbyController],
   providers: [
     LobbyService,

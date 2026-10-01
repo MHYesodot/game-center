@@ -13,6 +13,7 @@ import (
 type Config struct {
 	Port                     string
 	PlatformAPIURL           string
+	PlatformAPISharedSecret  string
 	RedisURL                 string
 	NATSURL                  string
 	AllowedOrigins           []string
@@ -100,6 +101,7 @@ func Load() (Config, error) {
 	return Config{
 		Port:                    envOrDefault("PORT", "8081"),
 		PlatformAPIURL:          envOrDefault("PLATFORM_API_URL", "http://platform-api:3000"),
+		PlatformAPISharedSecret: strings.TrimSpace(os.Getenv("PLATFORM_API_SHARED_SECRET")),
 		RedisURL:                envOrDefault("REDIS_URL", "redis://redis:6379"),
 		NATSURL:                 envOrDefault("NATS_URL", "nats://nats:4222"),
 		AllowedOrigins:          allowedOrigins,

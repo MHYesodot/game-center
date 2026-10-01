@@ -11,6 +11,10 @@ async function bootstrap() {
   const logger = app.get(JsonLogger)
 
   app.useLogger(logger)
+  app.enableCors({
+    origin: process.env.CORS_ORIGIN,
+    credentials: true,
+  })
   app.enableShutdownHooks()
   app.setGlobalPrefix('api', {
     exclude: [

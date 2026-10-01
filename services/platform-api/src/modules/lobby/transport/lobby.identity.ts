@@ -1,13 +1,13 @@
 import { HttpException, HttpStatus } from '@nestjs/common'
 import type { Request } from 'express'
 
+import { requireAuthenticatedPlayer } from '../../auth/transport/authenticated-request.js'
 import type { LobbyRequestIdentity } from '../application/lobby.identity.js'
 
 export function requireLobbyIdentity(request: Request): LobbyRequestIdentity {
-  const playerId = request.header('x-player-id')?.trim()
-  const requestId = request.header('x-request-id')?.trim() ?? null
+  const authenticated = requireAuthenticatedPlayer(request)
 
-  if (!playerId) {
+  if (!authenticated.playerId) {
     throw new HttpException(
       {
         code: 'INVALID_PLAYER_ID',
@@ -17,7 +17,7 @@ export function requireLobbyIdentity(request: Request): LobbyRequestIdentity {
   }
 
   return {
-    playerId,
-    requestId,
+    playerId: authenticated.playerId,
+    requestId: authenticated.requestId,
   }
 }

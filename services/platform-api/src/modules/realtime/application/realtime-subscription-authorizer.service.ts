@@ -3,8 +3,6 @@ import type {
   AuthorizeRealtimeSubscriptionRequest,
   AuthorizeRealtimeSubscriptionResponse,
   RealtimeChannel,
-  ResolveRealtimeIdentityRequest,
-  ResolveRealtimeIdentityResponse,
 } from '@game-center/contracts'
 
 import { LobbyService } from '../../lobby/application/lobby.service.js'
@@ -18,16 +16,6 @@ export class RealtimeSubscriptionAuthorizerService {
     @Inject(MatchmakingService) private readonly matchmakingService: MatchmakingService,
     @Inject(SessionsService) private readonly sessionsService: SessionsService,
   ) {}
-
-  async resolveIdentity(request: ResolveRealtimeIdentityRequest): Promise<ResolveRealtimeIdentityResponse> {
-    const playerId = request.playerId.trim()
-
-    if (!playerId) {
-      throw new HttpException({ code: 'INVALID_PLAYER_ID' }, HttpStatus.BAD_REQUEST)
-    }
-
-    return { playerId }
-  }
 
   async authorize(request: AuthorizeRealtimeSubscriptionRequest): Promise<AuthorizeRealtimeSubscriptionResponse> {
     const playerId = request.playerId.trim()

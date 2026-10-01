@@ -95,7 +95,7 @@ No future phase is treated as complete unless the repository and existing docume
 | P02 GameServerAllocator Abstraction | DONE | P01 | Provider-neutral allocation contract. |
 | P03 Docker DEV Game Allocator | DONE | P02 | First real session-to-server allocation flow. |
 | P04 Realtime Gateway | DONE | P01, P03 | Authenticated realtime transport and subscriptions. |
-| P05 Authentication & Identity | READY | P04 | Replace transitional identity paths. |
+| P05 Authentication & Identity | IN_PROGRESS | P04 | Replace transitional identity paths. |
 | P06 Player Profile | NOT_STARTED | P05 | Player-owned public and private profile data. |
 | P07 Social Graph | NOT_STARTED | P05, P06 | Friends, blocks, presence eligibility. |
 | P08 Party System | NOT_STARTED | P07 | Party lifecycle distinct from Lobby. |
@@ -650,7 +650,7 @@ Closure Evidence (2026-10-01):
 
 ### P05 Authentication & Identity
 
-Status: `READY`
+Status: `IN_PROGRESS`
 
 Purpose:
 

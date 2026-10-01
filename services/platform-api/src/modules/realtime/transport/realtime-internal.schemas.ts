@@ -8,7 +8,7 @@ const subscriptionTargetSchema = z.discriminatedUnion('kind', [
 ])
 
 export const resolveRealtimeIdentitySchema = z.object({
-  playerId: z.string().trim().min(1).max(120),
+  ticket: z.string().trim().min(1).max(512),
 })
 
 export const authorizeRealtimeSubscriptionSchema = z.object({

@@ -66,24 +66,22 @@ Redis is not durable truth and does not own lobby membership, matchmaking owners
 - Dedicated game servers = gameplay data plane and authoritative game simulation.
 - The gateway must not proxy gameplay packets by default.
 
-## Transitional Identity Boundary
+## Authenticated Identity Boundary
 
-P04 uses the current transitional identity boundary:
+P05 replaces the transitional gateway handshake identity boundary:
 
-- handshake identity source: `x-player-id` equivalent payload material presented during websocket handshake
+- handshake identity source: short-lived realtime `ticket`
+- gateway resolves the ticket through platform-api internal realtime auth routes
+- internal platform-api realtime routes require `x-realtime-gateway-secret`
 - optional correlation material remains request/message scoped
 - the client may not mutate identity after the handshake succeeds
-
-Removal condition:
-
-- replace transitional identity binding when P05 provides authenticated player identity for gateway connections
 
 ## Connection Model
 
 ### Connection
 
 - `connectionId`: gateway-issued opaque identifier
-- `playerId`: resolved transitional platform identity
+- `playerId`: resolved authenticated platform identity
 - `gatewayNodeId`: process-lifecycle node identifier
 - `state`: `connecting | connected | closing | closed`
 - `protocolVersion`

@@ -55,7 +55,7 @@ type EventEnvelope struct {
 
 type HandshakePayload struct {
 	ProtocolVersion string `json:"protocolVersion"`
-	PlayerID        string `json:"playerId"`
+	Ticket          string `json:"ticket"`
 	ClientType      string `json:"clientType"`
 	ClientVersion   string `json:"clientVersion"`
 	Platform        string `json:"platform"`
@@ -73,7 +73,7 @@ type SubscribePayload struct {
 }
 
 type ResolveIdentityRequest struct {
-	PlayerID string `json:"playerId"`
+	Ticket string `json:"ticket"`
 }
 
 type ResolveIdentityResponse struct {

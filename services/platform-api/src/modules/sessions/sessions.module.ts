@@ -9,6 +9,7 @@ import { ID_GENERATOR } from '../../boundaries/id-generator.js'
 import { DATABASE_POOL } from '../../infrastructure/infrastructure.tokens.js'
 import { MatchReadyQueryModule } from '../../module-bindings/match-ready-query.module.js'
 import { SessionAllocationOrchestratorModule } from '../../module-bindings/session-allocation-orchestrator.module.js'
+import { AuthModule } from '../auth/auth.module.js'
 import { SessionsService } from './application/sessions.service.js'
 import { SESSION_ALLOCATION_PORT, SESSION_REPOSITORY } from './application/sessions.ports.js'
 import { SessionsController } from './transport/sessions.controller.js'
@@ -17,7 +18,7 @@ import { PostgresSessionRepository } from './infrastructure/persistence/reposito
 import { SessionAllocationPortAdapter } from './infrastructure/session-allocation.port.adapter.js'
 
 @Module({
-  imports: [MatchReadyQueryModule, SessionAllocationOrchestratorModule],
+  imports: [MatchReadyQueryModule, SessionAllocationOrchestratorModule, AuthModule],
   controllers: [SessionsController],
   providers: [
     SessionsService,

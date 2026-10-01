@@ -80,15 +80,15 @@ Actual matchmaking error codes are:
 
 ## Identity Boundary
 
-Slice 4 uses a transitional test/development identity boundary:
+P05 runtime identity for Matchmaking routes is provided by the authenticated Auth session boundary:
 
-- identity source: `x-player-id`
+- identity source: authenticated `gc_session` cookie
 - optional request correlation: `x-request-id`
 - request body never supplies player identity
 
-Removal condition:
+Transitional note:
 
-- replace `x-player-id` once the Auth boundary provides authenticated player identity to the Matchmaking transport layer.
+- `x-player-id` remains isolated to test-only migration helpers while older integration fixtures are cut over.
 
 ## Explicit Non-Goals For Slice 4
 

@@ -26,7 +26,7 @@ func TestHandshakeSuccessRegistersConnection(t *testing.T) {
 
 	harness.writeHandshake(t, connection, contracts.HandshakePayload{
 		ProtocolVersion: "realtime.v1",
-		PlayerID:        "player-a",
+		Ticket:          "player-a",
 		ClientType:      "web",
 		ClientVersion:   "1.0.0",
 		Platform:        "web",
@@ -58,15 +58,15 @@ func TestHandshakeMissingIdentityRejectedBeforeRegistration(t *testing.T) {
 
 	harness.writeHandshake(t, connection, contracts.HandshakePayload{
 		ProtocolVersion: "realtime.v1",
-		PlayerID:        "   ",
+		Ticket:          "   ",
 		ClientType:      "web",
 		ClientVersion:   "1.0.0",
 		Platform:        "web",
 	})
 
 	errEnvelope, closeError := harness.readErrorAndClose(t, connection)
-	if errEnvelope.Payload.Code != "INVALID_PLAYER_ID" {
-		t.Fatalf("expected INVALID_PLAYER_ID, got %s", errEnvelope.Payload.Code)
+	if errEnvelope.Payload.Code != "AUTHENTICATION_REQUIRED" {
+		t.Fatalf("expected AUTHENTICATION_REQUIRED, got %s", errEnvelope.Payload.Code)
 	}
 	var closeFrame *websocket.CloseError
 	if !errors.As(closeError, &closeFrame) || closeFrame.Code != websocket.ClosePolicyViolation {
@@ -87,7 +87,7 @@ func TestHandshakeUnsupportedProtocolRejected(t *testing.T) {
 
 	harness.writeHandshake(t, connection, contracts.HandshakePayload{
 		ProtocolVersion: "realtime.v0",
-		PlayerID:        "player-a",
+		Ticket:          "player-a",
 		ClientType:      "web",
 		ClientVersion:   "1.0.0",
 		Platform:        "web",
@@ -112,7 +112,7 @@ func TestHandshakeInvalidClientMetadataRejected(t *testing.T) {
 
 	harness.writeHandshake(t, connection, contracts.HandshakePayload{
 		ProtocolVersion: "realtime.v1",
-		PlayerID:        "player-a",
+		Ticket:          "player-a",
 		ClientType:      "console",
 		ClientVersion:   "",
 		Platform:        "arcade-cabinet",
@@ -498,7 +498,7 @@ func (h *handlerHarness) connectedClientForPlayer(t *testing.T, playerID string)
 	connection := h.dial(t, "http://allowed.example")
 	h.writeHandshake(t, connection, contracts.HandshakePayload{
 		ProtocolVersion: "realtime.v1",
-		PlayerID:        playerID,
+		Ticket:          playerID,
 		ClientType:      "web",
 		ClientVersion:   "1.0.0",
 		Platform:        "web",
@@ -637,7 +637,7 @@ type stubPlatformClient struct {
 	authorizeError    error
 }
 
-func (stub *stubPlatformClient) ResolveIdentity(_ context.Context, playerID string) (string, error) {
+func (stub *stubPlatformClient) ResolveIdentity(_ context.Context, ticket string) (string, error) {
 	stub.resolveCalls++
 	if stub.resolveError != nil {
 		return "", stub.resolveError
@@ -645,7 +645,7 @@ func (stub *stubPlatformClient) ResolveIdentity(_ context.Context, playerID stri
 	if stub.resolvePlayerID != "" {
 		return stub.resolvePlayerID, nil
 	}
-	return playerID, nil
+	return ticket, nil
 }
 
 func (stub *stubPlatformClient) AuthorizeSubscription(_ context.Context, _ string, _ contracts.SubscriptionTarget) (contracts.AuthorizeSubscriptionResponse, error) {

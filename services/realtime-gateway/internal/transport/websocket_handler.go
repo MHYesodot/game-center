@@ -20,7 +20,7 @@ import (
 )
 
 type platformClient interface {
-	ResolveIdentity(ctx context.Context, playerID string) (string, error)
+	ResolveIdentity(ctx context.Context, ticket string) (string, error)
 	AuthorizeSubscription(ctx context.Context, playerID string, target contracts.SubscriptionTarget) (contracts.AuthorizeSubscriptionResponse, error)
 }
 
@@ -110,8 +110,8 @@ func (handler *WebSocketHandler) ServeHTTP(writer http.ResponseWriter, request *
 		handler.closeProtocolError(connection, "HANDSHAKE_REQUIRED", "errors.realtime.handshakeRequired")
 		return
 	}
-	if strings.TrimSpace(payload.PlayerID) == "" {
-		handler.closeProtocolError(connection, "INVALID_PLAYER_ID", "errors.realtime.invalidPlayerId")
+	if strings.TrimSpace(payload.Ticket) == "" {
+		handler.closeProtocolError(connection, "AUTHENTICATION_REQUIRED", "errors.realtime.authenticationRequired")
 		return
 	}
 	if payload.ProtocolVersion != handler.config.ProtocolVersion {
@@ -124,9 +124,14 @@ func (handler *WebSocketHandler) ServeHTTP(writer http.ResponseWriter, request *
 	}
 
 	resolveCtx, cancelResolve := handler.dependencyContext(request.Context())
-	resolvedPlayerID, err := handler.platform.ResolveIdentity(resolveCtx, strings.TrimSpace(payload.PlayerID))
+	resolvedPlayerID, err := handler.platform.ResolveIdentity(resolveCtx, strings.TrimSpace(payload.Ticket))
 	cancelResolve()
 	if err != nil {
+		var requestError platformapi.RequestError
+		if errors.As(err, &requestError) && requestError.StatusCode == http.StatusUnauthorized {
+			handler.closeProtocolError(connection, "INVALID_REALTIME_TICKET", "errors.realtime.invalidRealtimeTicket")
+			return
+		}
 		handler.closeDependencyFailure(connection)
 		return
 	}

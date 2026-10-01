@@ -6,6 +6,8 @@ export type RealtimeProtocolVersion = 'realtime.v1'
 
 export type RealtimeClientType = 'web' | 'desktop' | 'mobile' | 'test'
 
+export type RealtimePlatform = MatchmakingPlatform | 'linux'
+
 export type RealtimeCommandType =
   | 'connection.handshake'
   | 'connection.ping'
@@ -30,7 +32,9 @@ export type RealtimeErrorCode =
   | 'UNSUPPORTED_PROTOCOL_VERSION'
   | 'HANDSHAKE_REQUIRED'
   | 'HANDSHAKE_TIMEOUT'
+  | 'AUTHENTICATION_REQUIRED'
   | 'INVALID_PLAYER_ID'
+  | 'INVALID_REALTIME_TICKET'
   | 'SUBSCRIPTION_DENIED'
   | 'REALTIME_UNAVAILABLE'
   | 'RATE_LIMITED'
@@ -47,10 +51,10 @@ export type RealtimeChannel = `player:${string}` | `lobby:${string}` | `matchmak
 
 export type RealtimeHandshakePayload = {
   protocolVersion: RealtimeProtocolVersion
-  playerId: string
+  ticket: string
   clientType: RealtimeClientType
   clientVersion: string
-  platform: MatchmakingPlatform
+  platform: RealtimePlatform
 }
 
 export type RealtimeSubscribePayload = {
@@ -78,6 +82,24 @@ export type RealtimeEnvelope<TKind extends 'command' | 'event' | 'ack' | 'error'
 }
 
 export type RealtimeCommandEnvelope<TPayload = unknown> = RealtimeEnvelope<'command', RealtimeCommandType, TPayload>
+
+export type ResolveRealtimeIdentityRequest = {
+  ticket: string
+}
+
+export type ResolveRealtimeIdentityResponse = {
+  playerId: string
+}
+
+export type AuthorizeRealtimeSubscriptionRequest = {
+  playerId: string
+  target: RealtimeSubscriptionTarget
+}
+
+export type AuthorizeRealtimeSubscriptionResponse = {
+  allowed: boolean
+  channel: RealtimeChannel | null
+}
 
 export type RealtimeAckEnvelope = RealtimeEnvelope<
   'ack',
@@ -158,22 +180,4 @@ export type PlatformRealtimeEvent = {
   occurredAt: string
   channels: RealtimeChannel[]
   payload: PlatformRealtimeEventPayload
-}
-
-export type ResolveRealtimeIdentityRequest = {
-  playerId: string
-}
-
-export type ResolveRealtimeIdentityResponse = {
-  playerId: string
-}
-
-export type AuthorizeRealtimeSubscriptionRequest = {
-  playerId: string
-  target: RealtimeSubscriptionTarget
-}
-
-export type AuthorizeRealtimeSubscriptionResponse = {
-  allowed: boolean
-  channel: RealtimeChannel | null
 }

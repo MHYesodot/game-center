@@ -26,7 +26,7 @@ type Gateway struct {
 }
 
 func New(cfg config.Config, logger *log.Logger) (*Gateway, error) {
-	platform := platformapi.NewClient(cfg.PlatformAPIURL, cfg.PlatformTimeout)
+	platform := platformapi.NewClient(cfg.PlatformAPIURL, cfg.PlatformTimeout, cfg.PlatformAPISharedSecret)
 	redisRegistry, err := runtime.NewRedisRegistry(cfg.RedisURL, cfg.RedisNamespace, cfg.ConnectionTTL)
 	if err != nil {
 		return nil, err

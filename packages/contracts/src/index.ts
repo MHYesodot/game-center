@@ -1,4 +1,5 @@
 export * from './v1/catalog.js'
+export * from './v1/auth.js'
 export * from './v1/lobby.js'
 export * from './v1/matchmaking.js'
 export * from './v1/realtime.js'

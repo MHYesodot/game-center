@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, HttpStatus, Inject, Post } from '@nestjs/common'
+import { Body, Controller, HttpCode, HttpStatus, Inject, Post, UseGuards } from '@nestjs/common'
 import type {
   AuthorizeRealtimeSubscriptionRequest,
   AuthorizeRealtimeSubscriptionResponse,
@@ -6,20 +6,25 @@ import type {
   ResolveRealtimeIdentityResponse,
 } from '@game-center/contracts'
 
+import { AuthService } from '../../auth/application/auth.service.js'
+import { RealtimeGatewayGuard } from '../../auth/transport/realtime-gateway.guard.js'
 import { RealtimeSubscriptionAuthorizerService } from '../application/realtime-subscription-authorizer.service.js'
 import { authorizeRealtimeSubscriptionSchema, resolveRealtimeIdentitySchema } from './realtime-internal.schemas.js'
 
 @Controller('internal/realtime')
+@UseGuards(RealtimeGatewayGuard)
 export class RealtimeInternalController {
   constructor(
+    @Inject(AuthService) private readonly authService: AuthService,
     @Inject(RealtimeSubscriptionAuthorizerService)
     private readonly authorizer: RealtimeSubscriptionAuthorizerService,
   ) {}
 
   @Post('identity/resolve')
   @HttpCode(HttpStatus.OK)
-  resolveIdentity(@Body() body: unknown): Promise<ResolveRealtimeIdentityResponse> {
-    return this.authorizer.resolveIdentity(resolveRealtimeIdentitySchema.parse(body) as ResolveRealtimeIdentityRequest)
+  async resolveIdentity(@Body() body: unknown): Promise<ResolveRealtimeIdentityResponse> {
+    const request = resolveRealtimeIdentitySchema.parse(body) as ResolveRealtimeIdentityRequest
+    return { playerId: await this.authService.resolveRealtimeIdentity(request.ticket) }
   }
 
   @Post('subscriptions/authorize')
