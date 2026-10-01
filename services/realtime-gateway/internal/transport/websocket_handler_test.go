@@ -231,6 +231,27 @@ func TestSubscribeDuplicateAndUnsubscribeCleanup(t *testing.T) {
 	}
 }
 
+func TestInvalidSubscriptionPayloadReturnsSemanticError(t *testing.T) {
+	harness := newHandlerHarness(t)
+	connection := harness.connectedClient(t)
+	defer connection.Close()
+
+	harness.writeEnvelope(t, connection, contracts.CommandEnvelope{
+		ProtocolVersion: "realtime.v1",
+		Kind:            "command",
+		Type:            "subscription.subscribe",
+		MessageID:       "sub-invalid",
+		Timestamp:       time.Now().UTC().Format(time.RFC3339Nano),
+		Payload:         mustJSONRaw(t, map[string]any{"target": map[string]any{"kind": 123}}),
+	})
+
+	errEnvelope := harness.readError(t, connection)
+	if errEnvelope.Payload.Code != "INVALID_MESSAGE" {
+		t.Fatalf("expected INVALID_MESSAGE, got %s", errEnvelope.Payload.Code)
+	}
+	harness.ping(t, connection, "ping-after-invalid-subscription")
+}
+
 func TestUnauthorizedPrivatePlayerChannelDeniedAndSocketRemainsUsable(t *testing.T) {
 	harness := newHandlerHarness(t)
 	harness.platform.authorizeResponse = contracts.AuthorizeSubscriptionResponse{Allowed: false, Channel: "player:player-b"}
@@ -276,6 +297,109 @@ func TestPlatformUnavailableOnSubscribeDoesNotInsertSubscription(t *testing.T) {
 		t.Fatalf("expected no lobby subscription recorded")
 	}
 	harness.ping(t, connection, "ping-after-outage")
+}
+
+func TestRedisUnavailableOnSubscribeRollsBackAndReturnsError(t *testing.T) {
+	harness := newHandlerHarness(t)
+	harness.platform.authorizeResponse = contracts.AuthorizeSubscriptionResponse{Allowed: true, Channel: "lobby:lobby-1"}
+	harness.redis.subscribeError = errors.New("redis down")
+	connection := harness.connectedClient(t)
+	defer connection.Close()
+
+	harness.writeEnvelope(t, connection, contracts.CommandEnvelope{
+		ProtocolVersion: "realtime.v1",
+		Kind:            "command",
+		Type:            "subscription.subscribe",
+		MessageID:       "sub-redis-down",
+		Timestamp:       time.Now().UTC().Format(time.RFC3339Nano),
+		Payload:         mustJSONRaw(t, contracts.SubscribePayload{Target: contracts.SubscriptionTarget{Kind: "lobby", LobbyID: "lobby-1"}}),
+	})
+
+	errEnvelope := harness.readError(t, connection)
+	if errEnvelope.Payload.Code != "REALTIME_UNAVAILABLE" {
+		t.Fatalf("expected REALTIME_UNAVAILABLE, got %s", errEnvelope.Payload.Code)
+	}
+	snapshot := harness.local.Snapshot()[0]
+	if countChannel(snapshot.SubscribedChannels, "lobby:lobby-1") != 0 {
+		t.Fatal("expected local lobby subscription rollback after redis subscribe failure")
+	}
+	harness.ping(t, connection, "ping-after-redis-subscribe-failure")
+}
+
+func TestRedisUnavailableOnUnsubscribeRestoresLocalSubscriptionAndReturnsError(t *testing.T) {
+	harness := newHandlerHarness(t)
+	harness.platform.authorizeResponse = contracts.AuthorizeSubscriptionResponse{Allowed: true, Channel: "lobby:lobby-1"}
+	connection := harness.connectedClient(t)
+	defer connection.Close()
+
+	harness.subscribe(t, connection, contracts.SubscriptionTarget{Kind: "lobby", LobbyID: "lobby-1"}, "sub-before-redis-failure")
+	harness.redis.unsubscribeError = errors.New("redis down")
+	harness.writeEnvelope(t, connection, contracts.CommandEnvelope{
+		ProtocolVersion: "realtime.v1",
+		Kind:            "command",
+		Type:            "subscription.unsubscribe",
+		MessageID:       "unsub-redis-down",
+		Timestamp:       time.Now().UTC().Format(time.RFC3339Nano),
+		Payload:         mustJSONRaw(t, contracts.SubscribePayload{Target: contracts.SubscriptionTarget{Kind: "lobby", LobbyID: "lobby-1"}}),
+	})
+
+	errEnvelope := harness.readError(t, connection)
+	if errEnvelope.Payload.Code != "REALTIME_UNAVAILABLE" {
+		t.Fatalf("expected REALTIME_UNAVAILABLE, got %s", errEnvelope.Payload.Code)
+	}
+	snapshot := harness.local.Snapshot()[0]
+	if countChannel(snapshot.SubscribedChannels, "lobby:lobby-1") != 1 {
+		t.Fatal("expected local lobby subscription restore after redis unsubscribe failure")
+	}
+	harness.ping(t, connection, "ping-after-redis-unsubscribe-failure")
+}
+
+func TestRateLimitedCommandClosesAndCleansUp(t *testing.T) {
+	harness := newHandlerHarness(t)
+	harness.cfg.RateLimitMessagesPerSec = 1
+	harness.cfg.RateLimitBurst = 1
+	harness.restartServer(t)
+
+	connection := harness.connectedClient(t)
+	defer connection.Close()
+
+	harness.ping(t, connection, "ping-1")
+	harness.writeEnvelope(t, connection, contracts.CommandEnvelope{
+		ProtocolVersion: "realtime.v1",
+		Kind:            "command",
+		Type:            "connection.ping",
+		MessageID:       "ping-2",
+		Timestamp:       time.Now().UTC().Format(time.RFC3339Nano),
+		Payload:         mustJSONRaw(t, map[string]any{"sentAt": time.Now().UTC().Format(time.RFC3339Nano)}),
+	})
+
+	connection.SetReadDeadline(time.Now().Add(time.Second))
+	_, _, closeError := connection.ReadMessage()
+	var closeFrame *websocket.CloseError
+	if !errors.As(closeError, &closeFrame) || closeFrame.Code != websocket.ClosePolicyViolation {
+		t.Fatalf("expected policy violation close, got %v", closeError)
+	}
+	if closeFrame.Text != "RATE_LIMITED" {
+		t.Fatalf("expected RATE_LIMITED close reason, got %s", closeFrame.Text)
+	}
+	harness.waitForSnapshotCount(t, 0)
+}
+
+func TestHeartbeatTimeoutClosesAndCleansUp(t *testing.T) {
+	harness := newHandlerHarness(t)
+	harness.cfg.HeartbeatTimeout = 40 * time.Millisecond
+	harness.restartServer(t)
+
+	connection := harness.connectedClient(t)
+	defer connection.Close()
+
+	connection.SetReadDeadline(time.Now().Add(time.Second))
+	_, _, closeError := connection.ReadMessage()
+	var closeFrame *websocket.CloseError
+	if !errors.As(closeError, &closeFrame) || closeFrame.Code != websocket.CloseNormalClosure {
+		t.Fatalf("expected policy violation close, got %v", closeError)
+	}
+	harness.waitForSnapshotCount(t, 0)
 }
 
 func TestAllowedAndDisallowedOrigins(t *testing.T) {
@@ -366,10 +490,15 @@ func (h *handlerHarness) dial(t *testing.T, origin string) *websocket.Conn {
 
 func (h *handlerHarness) connectedClient(t *testing.T) *websocket.Conn {
 	t.Helper()
+	return h.connectedClientForPlayer(t, "player-a")
+}
+
+func (h *handlerHarness) connectedClientForPlayer(t *testing.T, playerID string) *websocket.Conn {
+	t.Helper()
 	connection := h.dial(t, "http://allowed.example")
 	h.writeHandshake(t, connection, contracts.HandshakePayload{
 		ProtocolVersion: "realtime.v1",
-		PlayerID:        "player-a",
+		PlayerID:        playerID,
 		ClientType:      "web",
 		ClientVersion:   "1.0.0",
 		Platform:        "web",

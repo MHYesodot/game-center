@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { CATALOG_QUERY_SERVICE, type CatalogQueryService } from './boundaries/catalog-query.js'
 import { CLOCK } from './boundaries/clock.js'
 import { ID_GENERATOR } from './boundaries/id-generator.js'
+import { REALTIME_EVENT_PUBLISHER } from './boundaries/realtime-event-publisher.js'
 import { POSTGRES, REDIS, NATS } from './infrastructure/infrastructure.tokens.js'
 import { ReadinessService } from './infrastructure/readiness.service.js'
 import { HealthController } from './modules/health/health.controller.js'
@@ -208,6 +209,12 @@ async function createOutageApp(options: { postgresDown: boolean; redisDown: bool
         provide: ID_GENERATOR,
         useValue: {
           nextId: () => 'request-created-1',
+        },
+      },
+      {
+        provide: REALTIME_EVENT_PUBLISHER,
+        useValue: {
+          async publish() {},
         },
       },
     ],

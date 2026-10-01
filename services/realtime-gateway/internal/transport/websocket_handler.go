@@ -311,7 +311,12 @@ func (handler *WebSocketHandler) handleSubscribe(ctx context.Context, managed *m
 
 	if handler.local.AddSubscription(managed.id, authorized.Channel) {
 		managed.channels = appendChannel(managed.channels, authorized.Channel)
-		_ = handler.redis.Subscribe(ctx, handler.metadataFromConnection(managed), authorized.Channel, managed.channels)
+		if err := handler.redis.Subscribe(ctx, handler.metadataFromConnection(managed), authorized.Channel, managed.channels); err != nil {
+			handler.local.RemoveSubscription(managed.id, authorized.Channel)
+			managed.channels = removeChannel(managed.channels, authorized.Channel)
+			handler.sendError(managed, "REALTIME_UNAVAILABLE", "errors.realtime.unavailable", command.MessageID)
+			return
+		}
 	}
 	handler.writeAck(managed, command, "accepted", map[string]any{"channel": authorized.Channel})
 }
@@ -331,7 +336,12 @@ func (handler *WebSocketHandler) handleUnsubscribe(ctx context.Context, managed 
 	if strings.TrimSpace(authorized.Channel) != "" && isChannelAllowedForTarget(managed.playerID, payload.Target, authorized.Channel) {
 		handler.local.RemoveSubscription(managed.id, authorized.Channel)
 		managed.channels = removeChannel(managed.channels, authorized.Channel)
-		_ = handler.redis.Unsubscribe(ctx, handler.metadataFromConnection(managed), authorized.Channel)
+		if err := handler.redis.Unsubscribe(ctx, handler.metadataFromConnection(managed), authorized.Channel); err != nil {
+			handler.local.AddSubscription(managed.id, authorized.Channel)
+			managed.channels = appendChannel(managed.channels, authorized.Channel)
+			handler.sendError(managed, "REALTIME_UNAVAILABLE", "errors.realtime.unavailable", command.MessageID)
+			return
+		}
 	}
 	handler.writeAck(managed, command, "accepted", map[string]any{"channel": authorized.Channel})
 }

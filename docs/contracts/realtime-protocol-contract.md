@@ -98,6 +98,12 @@ P04 supports concrete platform events only for current flows:
 
 An ACK never implies that a platform domain transition succeeded unless the event or payload explicitly says so.
 
+Additional command semantics:
+
+- `subscription.subscribe` and `subscription.unsubscribe` return success ACKs only after the local registry and Redis runtime mutation both succeed.
+- Dependency failure during handshake or subscription authorization returns semantic `REALTIME_UNAVAILABLE`.
+- Rate limiting, oversized payloads, and heartbeat expiry may close the websocket at the transport layer without a preceding domain event envelope.
+
 ## Error Codes
 
 Gateway-level semantic codes include:
@@ -140,6 +146,8 @@ Clients send typed subscription intent; they do not send arbitrary channel strin
 - duplicate delivery tolerated
 - no global ordering guarantee
 - no exactly-once guarantee
+- local recipient fanout skips already-closed connections
+- a full outbound queue is treated as a slow-consumer transport failure and the affected connection is closed
 
 ## Explicit Non-Goals
 

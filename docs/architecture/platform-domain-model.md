@@ -27,6 +27,13 @@ The intent is explicit: Phase 1 keeps boundary shells only where the business ca
 - Platform services never own gameplay state, win logic, or simulation state.
 - Platform APIs return domain-safe identifiers, metadata, and error codes rather than translated user messages.
 
+## Realtime Gateway Boundary
+
+- `services/realtime-gateway` is a transport boundary, not a persisted business domain.
+- It may route only platform control-plane events for player, lobby, matchmaking request, and session channels.
+- It must not own PostgreSQL truth, Drizzle access, matchmaking/session/allocation persistence logic, or gameplay protocol design.
+- Platform domains authorize subscriptions and publish concrete events through public boundaries; they do not import gateway internals.
+
 ## Catalog Domain
 
 ### Aggregates and Value Objects

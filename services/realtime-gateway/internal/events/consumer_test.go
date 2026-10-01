@@ -83,6 +83,40 @@ func TestHandleSkipsClosedRecipients(t *testing.T) {
 	}
 }
 
+func TestHandleClosesSlowConsumerWhenQueueIsFull(t *testing.T) {
+	registry := runtime.NewLocalRegistry()
+	send := make(chan []byte, 1)
+	send <- []byte(`{"kind":"event","type":"queued"}`)
+	closed := make(chan struct{})
+	closeCalled := false
+	registry.Register(&runtime.ConnectionSnapshot{
+		ConnectionID:       "conn-1",
+		PlayerID:           "player-a",
+		SubscribedChannels: []string{"player:player-a"},
+		Send:               send,
+		Closed:             closed,
+		CloseSlowConsumer: func() {
+			closeCalled = true
+		},
+	})
+
+	consumer := NewConsumer(nil, log.New(io.Discard, "", 0), registry)
+	message := &nats.Msg{Data: mustJSON(t, contracts.PlatformRealtimeEvent{
+		ProtocolVersion: "realtime.v1",
+		EventType:       "test.injected",
+		MessageID:       "evt-3",
+		OccurredAt:      time.Now().UTC().Format(time.RFC3339Nano),
+		Channels:        []string{"player:player-a"},
+		Payload:         mustJSON(t, map[string]any{"marker": "full"}),
+	})}
+
+	consumer.handle(message)
+
+	if !closeCalled {
+		t.Fatal("expected slow-consumer policy to trigger when outbound queue is full")
+	}
+}
+
 func mustJSON(t *testing.T, value any) []byte {
 	t.Helper()
 

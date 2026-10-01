@@ -6,8 +6,8 @@ import ts from 'typescript'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const workspaceRoot = path.resolve(__dirname, '..', '..')
-const defaultTargets = ['apps/web', 'packages', 'services/platform-api', 'games']
-const codeFilePattern = /\.(?:[cm]?[jt]sx?)$/
+const defaultTargets = ['apps/web', 'packages', 'services/platform-api', 'services/realtime-gateway', 'games']
+const codeFilePattern = /\.(?:[cm]?[jt]sx?|go)$/
 const ignoredDirectories = new Set([
   '.git',
   '.cache',
@@ -25,6 +25,10 @@ const productionGameMainPattern = /\/games\/production\/[^/]+\/src\/main\.[cm]?[
 const productionGamePathPattern = /\/games\/production\//
 const allocationInfraDependencyPattern = /^(?:drizzle-orm(?:\/|$)|pg$|redis$|dockerode$|@kubernetes\/client-node$|agones(?:$|\/))/
 const allocationRuntimeSdkPattern = /^(?:dockerode$|@kubernetes\/client-node$|agones(?:$|\/))/
+const gatewayPostgresDependencyPattern = /^(?:database\/sql$|github\.com\/jackc\/pgx(?:\/|$)|github\.com\/lib\/pq$|github\.com\/jmoiron\/sqlx$|gorm\.io\/)/
+const realtimeGatewayInternalPattern = /(?:^|\/)(?:services\/)?realtime-gateway\/internal\//
+const gatewayForbiddenPlatformInternalPattern = /services\/platform-api\/src\/modules\/(?:lobby|matchmaking|sessions|allocations)\/(?:application|domain|infrastructure|transport)\//
+const gatewayGameplayProtocolPattern = /\b(?:CreateGameSession|JoinGameSession|SessionPlayerAction|SessionHeartbeat|SessionResultReport|ReportResult|TerminateSession|SessionSeed)\b/
 
 function normalizePath(filePath) {
   return filePath.replace(/\\/g, '/')
@@ -158,6 +162,50 @@ function parseImports(sourceText) {
   return imports
 }
 
+function parseGoImports(sourceText) {
+  const imports = []
+
+  for (const match of sourceText.matchAll(/^\s*import\s+(?:(?:[A-Za-z_][A-Za-z0-9_]*|\.)\s+)?"([^"]+)"/gm)) {
+    imports.push(match[1])
+  }
+
+  for (const block of sourceText.matchAll(/import\s*\(([\s\S]*?)\)/gm)) {
+    for (const specifier of block[1].matchAll(/(?:(?:[A-Za-z_][A-Za-z0-9_]*|\.)\s+)?"([^"]+)"/g)) {
+      imports.push(specifier[1])
+    }
+  }
+
+  return imports
+}
+
+function collectImports(filePath, sourceText) {
+  if (/\.go$/.test(filePath)) {
+    return parseGoImports(sourceText)
+  }
+
+  return parseImports(sourceText)
+}
+
+function isTypeScriptFile(filePath) {
+  return /\.(?:[cm]?[jt]sx?)$/.test(filePath)
+}
+
+function isGatewayGoFile(filePath) {
+  return /\/services\/realtime-gateway\/.+\.go$/.test(normalizePath(filePath))
+}
+
+function scanRealtimeGatewayArchitecture(filePath, sourceText, violations) {
+  const normalizedFilePath = normalizePath(filePath)
+
+  if (!isGatewayGoFile(normalizedFilePath) || /_test\.go$/.test(normalizedFilePath)) {
+    return
+  }
+
+  if (gatewayGameplayProtocolPattern.test(sourceText)) {
+    violations.push(`${toRelative(filePath)} realtime gateway must not define gameplay protocol content`)
+  }
+}
+
 function getTopLevelOwner(filePath) {
   const relativePath = toRelative(filePath)
   const segments = relativePath.split('/')
@@ -176,6 +224,19 @@ function getTopLevelOwner(filePath) {
 function getPlatformModuleName(filePath) {
   const match = toRelative(filePath).match(/^services\/platform-api\/src\/modules\/([^/]+)\//)
   return match?.[1] ?? null
+}
+
+function isApprovedRealtimeModuleDependency(sourcePath, targetPath) {
+  const normalizedSource = normalizePath(sourcePath)
+  const normalizedTarget = normalizePath(targetPath)
+
+  if (!normalizedSource.includes('/services/platform-api/src/modules/realtime/')) {
+    return false
+  }
+
+  return (
+    /\/services\/platform-api\/src\/modules\/(lobby|matchmaking|sessions)\/(?:application\/.*\.service|[a-z-]+\.module)\.(?:[cm]?[jt]s)x?$/.test(normalizedTarget)
+  )
 }
 
 function looksLikeHumanText(value) {
@@ -319,28 +380,56 @@ const violations = []
 
 for (const filePath of files) {
   const sourceText = fs.readFileSync(filePath, 'utf8')
-  const sourceFile = ts.createSourceFile(
-    filePath,
-    sourceText,
-    ts.ScriptTarget.Latest,
-    true,
-    filePath.endsWith('.tsx')
-      ? ts.ScriptKind.TSX
-      : filePath.endsWith('.jsx')
-        ? ts.ScriptKind.JSX
-        : ts.ScriptKind.TS,
-  )
-  const imports = parseImports(sourceText)
+  const sourceFile = isTypeScriptFile(filePath)
+    ? ts.createSourceFile(
+        filePath,
+        sourceText,
+        ts.ScriptTarget.Latest,
+        true,
+        filePath.endsWith('.tsx')
+          ? ts.ScriptKind.TSX
+          : filePath.endsWith('.jsx')
+            ? ts.ScriptKind.JSX
+            : ts.ScriptKind.TS,
+      )
+    : null
+  const imports = collectImports(filePath, sourceText)
   const dependencies = new Set()
   const owner = getTopLevelOwner(filePath)
   const ownerModule = getPlatformModuleName(filePath)
   const normalizedFilePath = normalizePath(filePath)
 
-  scanForHardCodedUiText(filePath, sourceFile, violations)
+  if (sourceFile) {
+    scanForHardCodedUiText(filePath, sourceFile, violations)
+  }
   scanProductionGameArchitecture(filePath, sourceText, violations)
+  scanRealtimeGatewayArchitecture(filePath, sourceText, violations)
 
   for (const specifier of imports) {
+    const normalizedSpecifier = normalizePath(specifier)
     const resolvedImport = resolveImport(filePath, specifier, workspacePackages)
+
+    if (normalizedFilePath.includes('/services/realtime-gateway/') && gatewayPostgresDependencyPattern.test(specifier)) {
+      violations.push(`${toRelative(filePath)} realtime gateway must not depend on SQL or Postgres clients directly: ${specifier}`)
+    }
+
+    if (
+      normalizedFilePath.includes('/services/realtime-gateway/') &&
+      (gatewayForbiddenPlatformInternalPattern.test(normalizedSpecifier) || normalizedSpecifier.includes('/drizzle/'))
+    ) {
+      violations.push(`${toRelative(filePath)} realtime gateway must not depend on platform persistence or domain internals: ${specifier}`)
+    }
+
+    if (
+      normalizedFilePath.includes('/services/platform-api/src/') &&
+      realtimeGatewayInternalPattern.test(normalizedSpecifier)
+    ) {
+      violations.push(`${toRelative(filePath)} platform-api must not import realtime gateway internals: ${specifier}`)
+    }
+
+    if (owner.scope === 'games' && realtimeGatewayInternalPattern.test(normalizedSpecifier)) {
+      violations.push(`${toRelative(filePath)} games must not import realtime gateway internals: ${specifier}`)
+    }
 
     if (specifier.startsWith('@nestjs/') && normalizedFilePath.includes('/services/platform-api/src/modules/') && normalizedFilePath.includes('/domain/')) {
       const position = sourceText.indexOf(specifier)
@@ -444,6 +533,7 @@ for (const filePath of files) {
       ownerModule &&
       targetModule &&
       ownerModule !== targetModule &&
+      !isApprovedRealtimeModuleDependency(filePath, resolvedImport) &&
       !/\.spec\.[cm]?[jt]sx?$/.test(normalizedFilePath)
     ) {
       violations.push(`${toRelative(filePath)} platform modules must not import another module's internals: ${specifier}`)

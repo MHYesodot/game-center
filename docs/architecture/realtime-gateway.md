@@ -46,6 +46,7 @@ Redis is not durable truth and does not own lobby membership, matchmaking owners
 - carry concrete platform realtime events from platform-api to gateway processes
 - support cross-node fanout without sharing socket ownership
 - remain event transport only; not a generic event soup
+- use core NATS subject delivery with best-effort live semantics in P04, not durable JetStream replay
 
 ### Game server responsibility
 
@@ -135,6 +136,8 @@ Clients do not choose arbitrary channel strings. They send typed subscribe inten
 - ACK distinguishes transport receipt from domain success
 - error payloads carry stable semantic codes instead of localized strings
 - delivery is at-least-once/best-effort per channel, not exactly-once and not globally ordered
+- handshake success implicitly subscribes the connection to `player:<playerId>`
+- explicit subscribe and unsubscribe ACK success is emitted only after Redis-backed runtime mutation succeeds
 
 ## Failure Semantics
 
@@ -156,3 +159,11 @@ platform-api down:
 - live remains up
 - handshake, authorization, and command routes fail semantically where they depend on platform-api
 - existing sockets do not gain new authority from cached client claims
+
+## P04 Closure Notes
+
+- The live DEV stack does not auto-apply Platform API migrations; run `npm run db:prepare` or at minimum `npm run db:migrate` before proving session-allocation or session-ready flows.
+- A missing `game_server_allocations` table causes proposal acceptance to fail with `SESSION_CREATION_FAILED` during the Session-to-Allocation handoff even when `ALLOCATION_PROVIDER=test` is enabled.
+- The gateway proved end-to-end delivery for `lobby.updated`, `matchmaking.proposal.updated`, and `session.updated` through the public routed stack after the final registry and Redis rollback fixes.
+- Redis subscribe failure rolls back the local subscription and returns `REALTIME_UNAVAILABLE` instead of a false success ACK.
+- Redis unsubscribe failure restores the local subscription and returns `REALTIME_UNAVAILABLE` instead of silently dropping channel state.

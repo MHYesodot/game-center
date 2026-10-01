@@ -2,9 +2,9 @@
 
 ## Scope
 
-This policy currently covers committed Drizzle migrations for the active Platform API persistence domains: Catalog, Lobby, and Matchmaking.
+This policy currently covers committed Drizzle migrations for the active Platform API persistence domains: Catalog, Lobby, Matchmaking, Sessions, and Allocations.
 
-It does not yet authorize Session persistence or future domains that have not reached an approved persisted roadmap phase.
+It does not authorize future persisted domains that have not reached an approved roadmap phase.
 
 ## Commands
 
@@ -20,8 +20,10 @@ It does not yet authorize Session persistence or future domains that have not re
 
 - Start services with Docker.
 - Run `npm run db:prepare` explicitly.
+- Re-run `npm run db:migrate` after pulling committed migration changes before claiming local readiness.
 - `docker compose up` must not generate migrations automatically.
 - DEV uses committed, forward-only migrations only.
+- Session and allocation proofs are not valid until the committed `game_server_allocations` migration is present in the target database.
 
 ### TEST
 
@@ -82,9 +84,10 @@ Required safeguards:
 
 - If migrations fail, fix the migration or the target environment before declaring the application ready.
 - Readiness must not be treated as healthy if PostgreSQL is unavailable.
-- Catalog endpoints must fail rather than falling back to local preview data when the database is unavailable.
+- Platform endpoints must fail rather than falling back to fabricated local state when the database is unavailable.
+- If a persisted domain table such as `game_server_allocations` is missing, treat that as environment drift and apply the committed migration before continuing runtime validation.
 
 ## Ownership
 
-- Catalog migration files remain under `services/platform-api/drizzle`.
-- Migration ownership stays with the Platform API catalog persistence implementation.
+- Platform API migration files remain under `services/platform-api/drizzle`.
+- Migration ownership stays with the Platform API persisted-domain implementations.

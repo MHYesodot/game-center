@@ -353,7 +353,9 @@ export class DockerGameServerAllocator implements GameServerAllocator {
   }
 
   private async findContainerAfterConflict(allocationId: string, containerName: string) {
-    for (let attempt = 0; attempt < 5; attempt += 1) {
+    const attempts = Math.max(Math.ceil(Math.min(this.config.healthTimeoutMs, 5_000) / 100), 5)
+
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
       const existing = await this.dockerClient.findManagedContainer({
         allocationId,
         name: containerName,

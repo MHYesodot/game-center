@@ -8,7 +8,7 @@
 | `apps/admin` | Administration and moderation tooling | TypeScript | React + Vite | Browser | Yes | None directly | HTTP via gateway | Consistent platform UI stack |
 | `apps/launcher` | Download, update, launch workflows | TypeScript initially | TBD | Desktop / Web hybrid | Yes | None directly | HTTP via gateway | Separate launcher concerns from web app |
 | `services/platform-api` | Platform HTTP API and domain orchestration inside one runtime | TypeScript | NestJS + Drizzle ORM | Node.js | Yes | PostgreSQL + Redis | HTTP + internal module calls + NATS integration events | Phase 1 modular monolith avoids premature microservices while preserving extraction-ready boundaries while keeping SQL ownership explicit |
-| `realtime-gateway` | High-volume connection routing, presence fanout | Go | Native / chosen Go stack | Go runtime | Yes | Redis optional | WebSocket / NATS | Connection-heavy layer separated from business services |
+| `realtime-gateway` | Platform control-plane websocket transport, subscription lifecycle, and cross-node fanout | Go | Native / chosen Go stack | Go runtime | Yes | Redis runtime projection only | WebSocket / core NATS subjects | Connection-heavy layer stays separate from business services and must not own gameplay or PostgreSQL truth |
 
 ## Platform API Modules
 
@@ -40,7 +40,7 @@
 | --- | --- | --- | --- | --- | --- |
 | PostgreSQL | System of record | PostgreSQL | Docker | Yes | Primary relational store |
 | Redis | Cache, ephemeral state, coordination | Redis | Docker | Yes | Not a source of truth |
-| NATS JetStream | Async event backbone | NATS | Docker | Yes | Low-coupling event integration |
+| NATS core subjects | Realtime event transport | NATS | Docker | Yes | Best-effort cross-node fanout for platform realtime events without durable queue semantics in P04 |
 | MinIO | Object storage in DEV | MinIO | Docker | Yes | S3-compatible local storage |
 | Traefik | DEV edge / reverse proxy | Traefik | Docker | Yes | Single entry point for local development |
 | Docker Engine + dockerode | DEV/CI dedicated game-server allocation | Docker Desktop or Docker Engine | Docker + Node.js | Yes | Explicit only when `ALLOCATION_PROVIDER=docker`; confined to allocation infrastructure |

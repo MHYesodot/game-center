@@ -1,0 +1,1 @@
+import '../../../../../../services/realtime-gateway/internal/runtime/local_registry.go'

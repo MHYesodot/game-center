@@ -4,6 +4,7 @@ import type { GameServerAllocation, MatchReadyPayload } from '@game-center/contr
 import type { MatchReadyQuery } from '../../../boundaries/match-ready-query.js'
 import type { Clock } from '../../../boundaries/clock.js'
 import type { IdGenerator } from '../../../boundaries/id-generator.js'
+import type { RealtimeEventPublisher } from '../../../boundaries/realtime-event-publisher.js'
 import type { DurableGameSession, DurableGameSessionAggregate } from '../domain/game-session.js'
 import type { SessionRequestIdentity } from './sessions.identity.js'
 import type { SessionAllocationPort, SessionRepository, SessionRepositoryTransaction } from './sessions.ports.js'
@@ -136,12 +137,17 @@ function createHarness(options: {
   const idGenerator: IdGenerator = {
     nextId: () => 'session-1',
   }
+  const realtimeEventPublisher: RealtimeEventPublisher = {
+    async publish() {
+      return
+    },
+  }
 
   return {
     now,
     repository,
     allocation,
-    service: new SessionsService(repository, allocation, matchReadyQuery, clock, idGenerator),
+    service: new SessionsService(repository, allocation, matchReadyQuery, clock, idGenerator, realtimeEventPublisher),
   }
 }
 

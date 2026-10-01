@@ -101,7 +101,7 @@ Default language and runtime choices are fixed unless an ADR approves an excepti
 | Browser 3D preview | Three.js only for preview / visualization / prototype use |
 | Database | PostgreSQL + Drizzle ORM in platform-api |
 | Cache / ephemeral state | Redis |
-| Messaging | NATS JetStream |
+| Messaging | NATS core subjects |
 | Object storage | MinIO in DEV, S3-compatible in production |
 
 ## Current Catalog Runtime
@@ -134,6 +134,15 @@ Default language and runtime choices are fixed unless an ADR approves an excepti
 - Session creation snapshots the trusted matched proposal and participant source request ids from Matchmaking.
 - Sessions does not depend on Redis for source-of-truth behavior.
 - `POST /api/sessions` is idempotent by `matchId`, and `GET /api/sessions/:sessionId` is authorized by persisted participant membership.
+
+## Current Realtime Gateway Runtime
+
+- The realtime gateway is a separate Go control-plane transport for websocket lifecycle, typed subscriptions, and cross-node fanout.
+- The gateway owns only process-local sockets plus Redis runtime projection under `gc:v1:rt:*`; it does not own PostgreSQL truth for lobby, matchmaking, session, or allocation data.
+- Handshake success implicitly subscribes the connection to `player:<playerId>` before any explicit subscribe command is processed.
+- Subscribe and unsubscribe success is acknowledged only after local registry and Redis runtime mutation both succeed; Redis mutation failure returns semantic `REALTIME_UNAVAILABLE` and rolls back local subscription state.
+- NATS delivery is best-effort over core subjects and is not durable, exactly-once, or globally ordered.
+- DEV realtime proofs that reach session `ready` require the committed Platform API migrations to be applied explicitly because compose startup does not auto-migrate the database.
 
 ## Current Allocation Runtime
 

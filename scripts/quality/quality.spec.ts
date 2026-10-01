@@ -86,6 +86,16 @@ describe('quality validators', () => {
     expect(result.stderr).toContain('allocation modules must use the Catalog public boundary, not Catalog persistence internals')
   })
 
+  it('rejects realtime gateway boundary violations', () => {
+    const result = runValidator('validate-architecture.mjs', 'architecture-invalid-realtime-gateway-boundaries')
+
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('realtime gateway must not depend on SQL or Postgres clients directly')
+    expect(result.stderr).toContain('realtime gateway must not define gameplay protocol content')
+    expect(result.stderr).toContain('platform-api must not import realtime gateway internals')
+    expect(result.stderr).toContain('games must not import realtime gateway internals')
+  })
+
   it('rejects raw design literals outside approved token files', () => {
     const result = runValidator('validate-design.mjs', 'design-invalid')
 

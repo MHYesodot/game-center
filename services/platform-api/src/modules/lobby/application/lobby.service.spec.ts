@@ -8,6 +8,7 @@ import type {
 import type { CatalogQueryService } from '../../../boundaries/catalog-query.js'
 import type { Clock } from '../../../boundaries/clock.js'
 import type { IdGenerator } from '../../../boundaries/id-generator.js'
+import type { RealtimeEventPublisher } from '../../../boundaries/realtime-event-publisher.js'
 import { buildUnavailableRuntimeState, type LobbyRepository, type LobbyRepositoryTransaction, type LobbyRuntimeStore } from './lobby.ports.js'
 import { LobbyService } from './lobby.service.js'
 import type { DurableLobbyAggregate } from '../domain/lobby-record.js'
@@ -195,6 +196,11 @@ function createHarness(options: {
   const idGenerator: IdGenerator = {
     nextId: () => 'lobby-created-1',
   }
+  const realtimeEventPublisher: RealtimeEventPublisher = {
+    async publish() {
+      return
+    },
+  }
   const catalogQueryService: CatalogQueryService = {
     async getGameById(gameId: string) {
       if (gameId === 'missing-game') {
@@ -221,7 +227,7 @@ function createHarness(options: {
   return {
     now,
     runtime,
-    service: new LobbyService(repository, runtime, catalogQueryService, clock, idGenerator),
+    service: new LobbyService(repository, runtime, catalogQueryService, clock, idGenerator, realtimeEventPublisher),
   }
 }
 

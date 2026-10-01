@@ -1,0 +1,1 @@
+import '../../../../../realtime-gateway/internal/platformapi/client.go'
