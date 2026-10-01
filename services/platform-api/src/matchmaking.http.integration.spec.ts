@@ -2,6 +2,7 @@ import 'reflect-metadata'
 
 import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import { createServer } from 'node:net'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 
@@ -278,16 +279,19 @@ describe('matchmaking http integration', () => {
   }, 20_000)
 
   it('fails runQueueCycle fast during Redis outage and recovers after Redis is restored', async () => {
-    const testApp = await createMatchmakingTestApplication()
+    const managedRedis = await startManagedRedisContainer()
+    cleanups.push(() => managedRedis.cleanup())
+
+    const testApp = await createMatchmakingTestApplication({ redisUrl: managedRedis.redisUrl })
     cleanups.push(testApp.cleanup)
     cleanups.push(async () => {
-      await ensureComposeServiceRunning('redis')
-      await waitForRedisAvailability()
+      await managedRedis.start()
+      await waitForRedisAvailability(managedRedis.redisUrl)
     })
 
     const queue = await createQueuedPair(testApp)
 
-    await stopComposeService('redis')
+    await managedRedis.stop()
     await waitFor(async () => {
       const request = await testApp.service.getRequest(queue.requestIds[0], { playerId: 'player-1', requestId: randomUUID() })
       expect(request.runtime.available).toBe(false)
@@ -312,8 +316,8 @@ describe('matchmaking http integration', () => {
     ])
     expect(await countQueueProposals(testApp.connectionString, queue.queueKey)).toBe(0)
 
-    await ensureComposeServiceRunning('redis')
-    await waitForRedisAvailability()
+    await managedRedis.start()
+    await waitForRedisAvailability(managedRedis.redisUrl)
 
     await testApp.service.getRequest(queue.requestIds[0], { playerId: 'player-1', requestId: randomUUID() })
     await testApp.service.getRequest(queue.requestIds[1], { playerId: 'player-2', requestId: randomUUID() })
@@ -334,9 +338,10 @@ describe('matchmaking http integration', () => {
   }, 45_000)
 })
 
-async function createMatchmakingTestApplication() {
+async function createMatchmakingTestApplication(options?: { redisUrl?: string }) {
+  const runtimeRedisUrl = options?.redisUrl ?? redisUrl
   const database = await createIsolatedPostgresDatabase(baseConnectionString as string, 'matchmaking_test')
-  const redis = await createIsolatedRedisNamespace(redisUrl, 'gc:v1:mm-test')
+  const redis = await createIsolatedRedisNamespace(runtimeRedisUrl, 'gc:v1:mm-test')
 
   await migrateCatalogDatabase(database.connectionString)
   const pool = createCatalogPool(database.connectionString)
@@ -345,7 +350,7 @@ async function createMatchmakingTestApplication() {
 
   process.env.NODE_ENV = 'test'
   process.env.POSTGRES_URL = database.connectionString
-  process.env.REDIS_URL = redisUrl
+  process.env.REDIS_URL = runtimeRedisUrl
   process.env.MATCHMAKING_RUNTIME_NAMESPACE = redis.namespace
   process.env.PORT = '3201'
 
@@ -390,24 +395,74 @@ async function createMatchmakingTestApplication() {
   }
 }
 
-async function stopComposeService(service: string) {
-  await runDockerCompose(['stop', service])
-}
-
-async function ensureComposeServiceRunning(service: string) {
-  await runDockerCompose(['up', '-d', service])
-}
-
-async function runDockerCompose(args: string[]) {
-  await execFileAsync('docker', ['compose', '-f', 'docker-compose.yml', '-f', 'docker-compose.dev.yml', ...args], {
+async function startManagedRedisContainer() {
+  const hostPort = await allocateFreeHostPort()
+  const started = await execFileAsync('docker', ['run', '-d', '-p', `127.0.0.1:${hostPort}:6379`, 'redis:7-alpine', 'redis-server', '--appendonly', 'yes'], {
     cwd: repoRoot,
     windowsHide: true,
   })
+  const containerId = started.stdout.trim()
+
+  return {
+    containerId,
+    redisUrl: `redis://127.0.0.1:${hostPort}`,
+    stop: async () => {
+      await execFileAsync('docker', ['stop', containerId], {
+        cwd: repoRoot,
+        windowsHide: true,
+      })
+    },
+    start: async () => {
+      await execFileAsync('docker', ['start', containerId], {
+        cwd: repoRoot,
+        windowsHide: true,
+      })
+    },
+    cleanup: async () => {
+      await execFileAsync('docker', ['rm', '-f', containerId], {
+        cwd: repoRoot,
+        windowsHide: true,
+      }).catch(() => undefined)
+    },
+  }
 }
 
-async function waitForRedisAvailability() {
+async function allocateFreeHostPort() {
+  return await new Promise<number>((resolve, reject) => {
+    const server = createServer()
+    server.unref()
+    server.on('error', reject)
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address()
+
+      if (!address || typeof address === 'string') {
+        server.close(() => reject(new Error('Unable to allocate a free host port for managed Redis.')))
+        return
+      }
+
+      const { port } = address
+      server.close((error) => {
+        if (error) {
+          reject(error)
+          return
+        }
+
+        resolve(port)
+      })
+    })
+  })
+}
+
+async function waitForRedisAvailability(targetRedisUrl = redisUrl) {
   await waitFor(async () => {
-    const client = createClient({ url: redisUrl })
+    const client = createClient({
+      url: targetRedisUrl,
+      socket: {
+        connectTimeout: 250,
+        reconnectStrategy: false,
+      },
+      disableOfflineQueue: true,
+    })
     client.on('error', () => {})
 
     try {
