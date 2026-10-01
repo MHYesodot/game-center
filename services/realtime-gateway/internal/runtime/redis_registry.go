@@ -43,6 +43,12 @@ func NewRedisRegistry(redisURL string, namespace string, ttl time.Duration) (*Re
 		return nil, err
 	}
 
+	options.MaxRetries = 0
+	options.DialTimeout = time.Second
+	options.ReadTimeout = time.Second
+	options.WriteTimeout = time.Second
+	options.PoolTimeout = time.Second
+
 	return &RedisRegistry{
 		client:    redis.NewClient(options),
 		namespace: namespace,

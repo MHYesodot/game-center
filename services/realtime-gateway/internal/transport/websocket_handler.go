@@ -123,7 +123,9 @@ func (handler *WebSocketHandler) ServeHTTP(writer http.ResponseWriter, request *
 		return
 	}
 
-	resolvedPlayerID, err := handler.platform.ResolveIdentity(request.Context(), strings.TrimSpace(payload.PlayerID))
+	resolveCtx, cancelResolve := handler.dependencyContext(request.Context())
+	resolvedPlayerID, err := handler.platform.ResolveIdentity(resolveCtx, strings.TrimSpace(payload.PlayerID))
+	cancelResolve()
 	if err != nil {
 		handler.closeDependencyFailure(connection)
 		return
@@ -173,7 +175,10 @@ func (handler *WebSocketHandler) ServeHTTP(writer http.ResponseWriter, request *
 		Closed:             managed.closed,
 		CloseSlowConsumer:  managed.closeSlow,
 	})
-	if err := handler.redis.RegisterConnection(request.Context(), handler.metadataFromConnection(managed), managed.channels); err != nil {
+	registerCtx, cancelRegister := handler.dependencyContext(request.Context())
+	err = handler.redis.RegisterConnection(registerCtx, handler.metadataFromConnection(managed), managed.channels)
+	cancelRegister()
+	if err != nil {
 		handler.local.Unregister(managed.id)
 		handler.closeDependencyFailure(connection)
 		return
@@ -203,7 +208,8 @@ func (handler *WebSocketHandler) CloseAll(reason string) {
 
 func (handler *WebSocketHandler) Reconcile(ctx context.Context) {
 	for _, snapshot := range handler.local.Snapshot() {
-		_ = handler.redis.TouchConnection(ctx, runtime.RedisConnectionMetadata{
+		touchCtx, cancel := handler.dependencyContext(ctx)
+		_ = handler.redis.TouchConnection(touchCtx, runtime.RedisConnectionMetadata{
 			ConnectionID:    snapshot.ConnectionID,
 			PlayerID:        snapshot.PlayerID,
 			GatewayNodeID:   snapshot.GatewayNodeID,
@@ -216,6 +222,7 @@ func (handler *WebSocketHandler) Reconcile(ctx context.Context) {
 			LastHeartbeatAt: snapshot.LastHeartbeatAt,
 			RemoteAddr:      snapshot.RemoteAddr,
 		}, snapshot.SubscribedChannels)
+		cancel()
 	}
 }
 
@@ -277,7 +284,9 @@ func (handler *WebSocketHandler) readLoop(ctx context.Context, managed *managedC
 		now := time.Now().UTC()
 		managed.lastHeartbeat = now
 		handler.local.TouchHeartbeat(managed.id, now)
-		_ = handler.redis.TouchConnection(ctx, handler.metadataFromConnection(managed), managed.channels)
+		touchCtx, cancelTouch := handler.dependencyContext(ctx)
+		_ = handler.redis.TouchConnection(touchCtx, handler.metadataFromConnection(managed), managed.channels)
+		cancelTouch()
 
 		switch command.Type {
 		case "connection.ping":
@@ -299,7 +308,9 @@ func (handler *WebSocketHandler) handleSubscribe(ctx context.Context, managed *m
 		return
 	}
 
-	authorized, err := handler.platform.AuthorizeSubscription(ctx, managed.playerID, payload.Target)
+	authorizeCtx, cancelAuthorize := handler.dependencyContext(ctx)
+	authorized, err := handler.platform.AuthorizeSubscription(authorizeCtx, managed.playerID, payload.Target)
+	cancelAuthorize()
 	if err != nil {
 		handler.sendError(managed, "REALTIME_UNAVAILABLE", "errors.realtime.unavailable", command.MessageID)
 		return
@@ -311,7 +322,10 @@ func (handler *WebSocketHandler) handleSubscribe(ctx context.Context, managed *m
 
 	if handler.local.AddSubscription(managed.id, authorized.Channel) {
 		managed.channels = appendChannel(managed.channels, authorized.Channel)
-		if err := handler.redis.Subscribe(ctx, handler.metadataFromConnection(managed), authorized.Channel, managed.channels); err != nil {
+		subscribeCtx, cancelSubscribe := handler.dependencyContext(ctx)
+		err = handler.redis.Subscribe(subscribeCtx, handler.metadataFromConnection(managed), authorized.Channel, managed.channels)
+		cancelSubscribe()
+		if err != nil {
 			handler.local.RemoveSubscription(managed.id, authorized.Channel)
 			managed.channels = removeChannel(managed.channels, authorized.Channel)
 			handler.sendError(managed, "REALTIME_UNAVAILABLE", "errors.realtime.unavailable", command.MessageID)
@@ -328,7 +342,9 @@ func (handler *WebSocketHandler) handleUnsubscribe(ctx context.Context, managed 
 		return
 	}
 
-	authorized, err := handler.platform.AuthorizeSubscription(ctx, managed.playerID, payload.Target)
+	authorizeCtx, cancelAuthorize := handler.dependencyContext(ctx)
+	authorized, err := handler.platform.AuthorizeSubscription(authorizeCtx, managed.playerID, payload.Target)
+	cancelAuthorize()
 	if err != nil {
 		handler.sendError(managed, "REALTIME_UNAVAILABLE", "errors.realtime.unavailable", command.MessageID)
 		return
@@ -336,7 +352,10 @@ func (handler *WebSocketHandler) handleUnsubscribe(ctx context.Context, managed 
 	if strings.TrimSpace(authorized.Channel) != "" && isChannelAllowedForTarget(managed.playerID, payload.Target, authorized.Channel) {
 		handler.local.RemoveSubscription(managed.id, authorized.Channel)
 		managed.channels = removeChannel(managed.channels, authorized.Channel)
-		if err := handler.redis.Unsubscribe(ctx, handler.metadataFromConnection(managed), authorized.Channel); err != nil {
+		unsubscribeCtx, cancelUnsubscribe := handler.dependencyContext(ctx)
+		err = handler.redis.Unsubscribe(unsubscribeCtx, handler.metadataFromConnection(managed), authorized.Channel)
+		cancelUnsubscribe()
+		if err != nil {
 			handler.local.AddSubscription(managed.id, authorized.Channel)
 			managed.channels = appendChannel(managed.channels, authorized.Channel)
 			handler.sendError(managed, "REALTIME_UNAVAILABLE", "errors.realtime.unavailable", command.MessageID)
@@ -427,11 +446,21 @@ func (handler *WebSocketHandler) closeManagedConnection(managed *managedConnecti
 		if closed != nil {
 			channels = closed.SubscribedChannels
 		}
-		_ = handler.redis.UnregisterConnection(context.Background(), handler.metadataFromConnection(managed), channels)
+		unregisterCtx, cancel := handler.dependencyContext(context.Background())
+		_ = handler.redis.UnregisterConnection(unregisterCtx, handler.metadataFromConnection(managed), channels)
+		cancel()
 		close(managed.closed)
 		_ = managed.conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(code, reason), time.Now().Add(handler.config.WriteTimeout))
 		_ = managed.conn.Close()
 	})
+}
+
+func (handler *WebSocketHandler) dependencyContext(parent context.Context) (context.Context, context.CancelFunc) {
+	if parent == nil {
+		parent = context.Background()
+	}
+
+	return context.WithTimeout(parent, handler.config.PlatformTimeout)
 }
 
 func (handler *WebSocketHandler) closeProtocolError(connection *websocket.Conn, code string, messageKey string) {
