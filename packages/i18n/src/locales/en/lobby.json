@@ -10,7 +10,11 @@
     "stack": "Stack",
     "clientLaunch": "Client launch",
     "runtime": "Runtime",
-    "serverFocus": "Server focus"
+    "serverFocus": "Server focus",
+    "authenticatedSession": "Authenticated session",
+    "protectedNotice": "Protected route",
+    "protectedBody": "This lobby route now resolves identity from the auth session cookie rather than client-supplied player ids.",
+    "realtimeTransport": "Realtime transport"
   },
   "loading": {
     "eyebrow": "Loading lobby",

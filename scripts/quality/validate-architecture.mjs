@@ -29,6 +29,8 @@ const gatewayPostgresDependencyPattern = /^(?:database\/sql$|github\.com\/jackc\
 const realtimeGatewayInternalPattern = /(?:^|\/)(?:services\/)?realtime-gateway\/internal\//
 const gatewayForbiddenPlatformInternalPattern = /services\/platform-api\/src\/modules\/(?:lobby|matchmaking|sessions|allocations)\/(?:application|domain|infrastructure|transport)\//
 const gatewayGameplayProtocolPattern = /\b(?:CreateGameSession|JoinGameSession|SessionPlayerAction|SessionHeartbeat|SessionResultReport|ReportResult|TerminateSession|SessionSeed)\b/
+const authInfrastructurePattern = /\/services\/platform-api\/src\/modules\/auth\/infrastructure\//
+const authUnsafeHeaderPattern = /x-player-id/
 
 function normalizePath(filePath) {
   return filePath.replace(/\\/g, '/')
@@ -332,6 +334,18 @@ function scanProductionGameArchitecture(filePath, sourceText, violations) {
   }
 }
 
+function scanAuthBoundaries(filePath, sourceText, violations) {
+  const normalizedFilePath = normalizePath(filePath)
+
+  if (
+    normalizedFilePath.includes('/services/platform-api/src/') &&
+    !/\.(?:spec|integration\.spec)\.[cm]?[jt]sx?$/.test(normalizedFilePath) &&
+    authUnsafeHeaderPattern.test(sourceText)
+  ) {
+    violations.push(`${toRelative(filePath)} platform-api runtime must not trust x-player-id headers`)
+  }
+}
+
 function detectCycles(graph) {
   const visited = new Set()
   const visiting = new Set()
@@ -404,6 +418,7 @@ for (const filePath of files) {
   }
   scanProductionGameArchitecture(filePath, sourceText, violations)
   scanRealtimeGatewayArchitecture(filePath, sourceText, violations)
+  scanAuthBoundaries(filePath, sourceText, violations)
 
   for (const specifier of imports) {
     const normalizedSpecifier = normalizePath(specifier)
@@ -415,7 +430,7 @@ for (const filePath of files) {
 
     if (
       normalizedFilePath.includes('/services/realtime-gateway/') &&
-      (gatewayForbiddenPlatformInternalPattern.test(normalizedSpecifier) || normalizedSpecifier.includes('/drizzle/'))
+      (gatewayForbiddenPlatformInternalPattern.test(normalizedSpecifier) || normalizedSpecifier.includes('/drizzle/') || normalizedSpecifier.includes('/modules/auth/'))
     ) {
       violations.push(`${toRelative(filePath)} realtime gateway must not depend on platform persistence or domain internals: ${specifier}`)
     }
@@ -558,6 +573,13 @@ for (const filePath of files) {
       normalizedResolved.includes('/services/platform-api/src/modules/matchmaking/infrastructure/')
     ) {
       violations.push(`${toRelative(filePath)} sessions must use matchmaking public boundaries, not matchmaking persistence or runtime internals: ${specifier}`)
+    }
+
+    if (
+      /\/services\/platform-api\/src\/modules\/(lobby|matchmaking|sessions|allocations)\//.test(normalizedFilePath) &&
+      authInfrastructurePattern.test(normalizedResolved)
+    ) {
+      violations.push(`${toRelative(filePath)} platform business modules must not depend on auth persistence or crypto internals: ${specifier}`)
     }
 
     if (

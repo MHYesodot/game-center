@@ -20,6 +20,7 @@ import { MatchmakingService } from './modules/matchmaking/application/matchmakin
 import { MATCHMAKING_QUEUE_STORE, MATCHMAKING_REPOSITORY, type MatchmakingQueueStore, type MatchmakingRepository } from './modules/matchmaking/application/matchmaking.ports.js'
 import { buildQueueKey, type DurableMatchProposal, type DurableMatchmakingRequest } from './modules/matchmaking/domain/queue-ticket.js'
 import { MatchmakingModule } from './modules/matchmaking/matchmaking.module.js'
+import { jsonHeaders, registerTestAccount } from './testing/auth-test-client.js'
 import { createIsolatedPostgresDatabase } from './testing/isolated-postgres-database.js'
 import { createIsolatedRedisNamespace } from './testing/isolated-redis.js'
 
@@ -48,10 +49,11 @@ describe('matchmaking http integration', () => {
   it('enqueues, gets, and cancels a durable matchmaking request idempotently', async () => {
     const testApp = await createMatchmakingTestApplication()
     cleanups.push(testApp.cleanup)
+    const player = await registerTestAccount(testApp.baseUrl, 'player-1')
 
     const enqueueResponse = await fetch(`${testApp.baseUrl}/api/matchmaking/requests`, {
       method: 'POST',
-      headers: jsonHeaders('player-1'),
+      headers: jsonHeaders(player.sessionCookie),
       body: JSON.stringify({
         gameId: 'signal-grid',
         queueType: 'quick-play',
@@ -65,19 +67,19 @@ describe('matchmaking http integration', () => {
     expect(created.runtime.available).toBe(true)
 
     const getResponse = await fetch(`${testApp.baseUrl}/api/matchmaking/requests/${created.requestId}`, {
-      headers: jsonHeaders('player-1'),
+      headers: jsonHeaders(player.sessionCookie),
     })
     expect(getResponse.status).toBe(200)
 
     const cancelResponse = await fetch(`${testApp.baseUrl}/api/matchmaking/requests/${created.requestId}/cancel`, {
       method: 'POST',
-      headers: jsonHeaders('player-1'),
+      headers: jsonHeaders(player.sessionCookie),
     })
     expect(cancelResponse.status).toBe(200)
 
     const repeatedCancelResponse = await fetch(`${testApp.baseUrl}/api/matchmaking/requests/${created.requestId}/cancel`, {
       method: 'POST',
-      headers: jsonHeaders('player-1'),
+      headers: jsonHeaders(player.sessionCookie),
     })
     expect(repeatedCancelResponse.status).toBe(200)
 
@@ -89,16 +91,17 @@ describe('matchmaking http integration', () => {
   it('prevents duplicate concurrent enqueue for the same player', async () => {
     const testApp = await createMatchmakingTestApplication()
     cleanups.push(testApp.cleanup)
+    const player = await registerTestAccount(testApp.baseUrl, 'player-1')
 
     const [firstResponse, secondResponse] = await Promise.all([
       fetch(`${testApp.baseUrl}/api/matchmaking/requests`, {
         method: 'POST',
-        headers: jsonHeaders('player-1'),
+        headers: jsonHeaders(player.sessionCookie),
         body: JSON.stringify({ gameId: 'signal-grid', queueType: 'quick-play', platform: 'web' }),
       }),
       fetch(`${testApp.baseUrl}/api/matchmaking/requests`, {
         method: 'POST',
-        headers: jsonHeaders('player-1'),
+        headers: jsonHeaders(player.sessionCookie),
         body: JSON.stringify({ gameId: 'signal-grid', queueType: 'quick-play', platform: 'web' }),
       }),
     ])
@@ -119,12 +122,14 @@ describe('matchmaking http integration', () => {
   it('creates a proposal, keeps accept idempotent, and resolves matched after all accepts', async () => {
     const testApp = await createMatchmakingTestApplication()
     cleanups.push(testApp.cleanup)
+    const playerOne = await registerTestAccount(testApp.baseUrl, 'player-1')
+    const playerTwo = await registerTestAccount(testApp.baseUrl, 'player-2')
 
-    const requestOne = await enqueue(testApp.baseUrl, 'player-1')
-    const requestTwo = await enqueue(testApp.baseUrl, 'player-2')
+    const requestOne = await enqueue(testApp.baseUrl, playerOne.sessionCookie)
+    const requestTwo = await enqueue(testApp.baseUrl, playerTwo.sessionCookie)
 
-    const refreshedOne = await getRequest(testApp.baseUrl, requestOne.requestId, 'player-1')
-    const refreshedTwo = await getRequest(testApp.baseUrl, requestTwo.requestId, 'player-2')
+    const refreshedOne = await getRequest(testApp.baseUrl, requestOne.requestId, playerOne.sessionCookie)
+    const refreshedTwo = await getRequest(testApp.baseUrl, requestTwo.requestId, playerTwo.sessionCookie)
     const proposalId = refreshedOne.activeProposalId ?? refreshedTwo.activeProposalId
 
     expect(proposalId).toBeTruthy()
@@ -132,11 +137,11 @@ describe('matchmaking http integration', () => {
     const [acceptFirst, acceptSecond] = await Promise.all([
       fetch(`${testApp.baseUrl}/api/matchmaking/proposals/${proposalId}/accept`, {
         method: 'POST',
-        headers: jsonHeaders('player-1'),
+        headers: jsonHeaders(playerOne.sessionCookie),
       }),
       fetch(`${testApp.baseUrl}/api/matchmaking/proposals/${proposalId}/accept`, {
         method: 'POST',
-        headers: jsonHeaders('player-1'),
+        headers: jsonHeaders(playerOne.sessionCookie),
       }),
     ])
 
@@ -145,11 +150,11 @@ describe('matchmaking http integration', () => {
 
     const proposalAfterRepeatedAccept = (await acceptSecond.json()) as { status: string; members: Array<{ playerId: string; acceptanceStatus: string }> }
     expect(proposalAfterRepeatedAccept.status).toBe('pending')
-    expect(proposalAfterRepeatedAccept.members.find((member) => member.playerId === 'player-1')?.acceptanceStatus).toBe('accepted')
+    expect(proposalAfterRepeatedAccept.members.find((member) => member.playerId === playerOne.playerId)?.acceptanceStatus).toBe('accepted')
 
     const finalAccept = await fetch(`${testApp.baseUrl}/api/matchmaking/proposals/${proposalId}/accept`, {
       method: 'POST',
-      headers: jsonHeaders('player-2'),
+      headers: jsonHeaders(playerTwo.sessionCookie),
     })
     expect(finalAccept.status).toBe(200)
 
@@ -504,10 +509,10 @@ async function countQueueProposals(connectionString: string, queueKey: string) {
   }
 }
 
-async function enqueue(baseUrl: string, playerId: string) {
+async function enqueue(baseUrl: string, sessionCookie: string) {
   const response = await fetch(`${baseUrl}/api/matchmaking/requests`, {
     method: 'POST',
-    headers: jsonHeaders(playerId),
+    headers: jsonHeaders(sessionCookie),
     body: JSON.stringify({
       gameId: 'signal-grid',
       queueType: 'quick-play',
@@ -530,20 +535,12 @@ async function enqueue(baseUrl: string, playerId: string) {
   }
 }
 
-async function getRequest(baseUrl: string, requestId: string, playerId: string) {
+async function getRequest(baseUrl: string, requestId: string, sessionCookie: string) {
   const response = await fetch(`${baseUrl}/api/matchmaking/requests/${requestId}`, {
-    headers: jsonHeaders(playerId),
+    headers: jsonHeaders(sessionCookie),
   })
   expect(response.status).toBe(200)
   return (await response.json()) as { activeProposalId: string | null }
-}
-
-function jsonHeaders(playerId: string) {
-  return {
-    'content-type': 'application/json',
-    'x-player-id': playerId,
-    'x-request-id': randomUUID(),
-  }
 }
 
 async function createQueuedPair(testApp: Awaited<ReturnType<typeof createMatchmakingTestApplication>>) {

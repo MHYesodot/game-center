@@ -5,5 +5,13 @@
   "catalog": {
     "loadFailed": "לא ניתן לטעון את הקטלוג החי.",
     "gameNotFound": "המשחק הזה אינו נמצא בקטלוג הפעיל."
+  },
+  "auth": {
+    "invalidCredentials": "האימייל או הסיסמה שגויים.",
+    "accountAlreadyExists": "כבר קיים חשבון עבור האימייל הזה.",
+    "sessionRequired": "יש להתחבר כדי להמשיך.",
+    "sessionLoadFailed": "לא ניתן לטעון את הסשן הנוכחי.",
+    "realtimeRejected": "אימות ה-Realtime נדחה.",
+    "realtimeUnavailable": "Realtime אינו זמין כעת."
   }
 }

@@ -8,15 +8,41 @@
     "browseCategories": "עיון בקטגוריות",
     "openLobby": "פתיחת לובי",
     "backToCatalog": "חזרה לקטלוג",
-    "returnToMainLobby": "חזרה ללובי הראשי"
+    "returnToMainLobby": "חזרה ללובי הראשי",
+    "signIn": "התחברות",
+    "register": "הרשמה",
+    "signOut": "התנתקות",
+    "connectRealtime": "חיבור ל-Realtime",
+    "disconnectRealtime": "ניתוק Realtime"
   },
   "surfaces": {
     "mainLobby": "לובי ראשי"
   },
   "states": {
-    "loading": "טוען..."
+    "loading": "טוען...",
+    "authenticating": "בודק סשן...",
+    "realtimeConnecting": "מתחבר לערוץ החי...",
+    "realtimeConnected": "הערוץ החי מחובר",
+    "realtimeDisconnected": "הערוץ החי מנותק"
   },
   "formats": {
     "categoryLobbies": "לובים של {category}"
+  },
+  "auth": {
+    "eyebrow": "משחק מאומת",
+    "title": "יש להתחבר לפני כניסה ללובי מוגן.",
+    "body": "בקשות HTTP משתמשות בעוגיית gc_session, ולחיצות יד של Realtime מנפיקות כרטיס חד-פעמי קצר-חיים מהסשן הנוכחי.",
+    "emailLabel": "אימייל",
+    "passwordLabel": "סיסמה",
+    "sessionLabel": "מחובר/ת בתור {email}",
+    "protectedRouteTitle": "גישה ללובי מוגן",
+    "protectedRouteBody": "המסלול הזה דורש כעת סשן שחקן מאומת אמיתי.",
+    "realtimeLabel": "סטטוס Realtime",
+    "realtimeReady": "מוכן/ה לבקש כרטיס חד-פעמי.",
+    "realtimeOpen": "מחובר/ת כשחקן/ית {playerId}.",
+    "realtimeClosed": "חיבור ה-Realtime נסגר.",
+    "realtimeError": "חיבור ה-Realtime נכשל.",
+    "realtimeTicketIssued": "כרטיס Realtime הונפק; פותח websocket.",
+    "sessionSummary": "שחקן/ית {playerId}"
   }
 }

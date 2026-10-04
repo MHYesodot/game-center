@@ -96,6 +96,14 @@ describe('quality validators', () => {
     expect(result.stderr).toContain('games must not import realtime gateway internals')
   })
 
+  it('rejects auth boundary violations', () => {
+    const result = runValidator('validate-architecture.mjs', 'architecture-invalid-auth-boundaries')
+
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('platform-api runtime must not trust x-player-id headers')
+    expect(result.stderr).toContain('platform business modules must not depend on auth persistence or crypto internals')
+  })
+
   it('rejects raw design literals outside approved token files', () => {
     const result = runValidator('validate-design.mjs', 'design-invalid')
 

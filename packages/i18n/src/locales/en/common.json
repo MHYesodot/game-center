@@ -8,15 +8,41 @@
     "browseCategories": "Browse categories",
     "openLobby": "Open lobby",
     "backToCatalog": "Back to catalog",
-    "returnToMainLobby": "Return to main lobby"
+    "returnToMainLobby": "Return to main lobby",
+    "signIn": "Sign in",
+    "register": "Register",
+    "signOut": "Sign out",
+    "connectRealtime": "Connect realtime",
+    "disconnectRealtime": "Disconnect realtime"
   },
   "surfaces": {
     "mainLobby": "Main lobby"
   },
   "states": {
-    "loading": "Loading..."
+    "loading": "Loading...",
+    "authenticating": "Checking session...",
+    "realtimeConnecting": "Connecting live channel...",
+    "realtimeConnected": "Live channel connected",
+    "realtimeDisconnected": "Live channel offline"
   },
   "formats": {
     "categoryLobbies": "{category} lobbies"
+  },
+  "auth": {
+    "eyebrow": "Authenticated play",
+    "title": "Sign in before entering a protected lobby.",
+    "body": "HTTP requests use the gc_session cookie, and realtime handshakes mint a short-lived one-time ticket from the current session.",
+    "emailLabel": "Email",
+    "passwordLabel": "Password",
+    "sessionLabel": "Signed in as {email}",
+    "protectedRouteTitle": "Protected lobby access",
+    "protectedRouteBody": "This route now requires a real authenticated player session.",
+    "realtimeLabel": "Realtime status",
+    "realtimeReady": "Ready to request a one-time ticket.",
+    "realtimeOpen": "Connected as player {playerId}.",
+    "realtimeClosed": "Realtime connection closed.",
+    "realtimeError": "Realtime connection failed.",
+    "realtimeTicketIssued": "Realtime ticket issued; opening websocket.",
+    "sessionSummary": "Player {playerId}"
   }
 }

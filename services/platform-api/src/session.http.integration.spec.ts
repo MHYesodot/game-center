@@ -1,7 +1,5 @@
 import 'reflect-metadata'
 
-import { randomUUID } from 'node:crypto'
-
 import { Module, RequestMethod } from '@nestjs/common'
 import type { INestApplication } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
@@ -23,6 +21,7 @@ import { createMatchmakingDatabase } from './modules/matchmaking/infrastructure/
 import { SessionsModule } from './modules/sessions/sessions.module.js'
 import { PostgresSessionRepository } from './modules/sessions/infrastructure/persistence/repositories/postgres-session.repository.js'
 import { createSessionsDatabase } from './modules/sessions/infrastructure/persistence/session.persistence.js'
+import { jsonHeaders, registerTestAccount } from './testing/auth-test-client.js'
 import { createIsolatedPostgresDatabase } from './testing/isolated-postgres-database.js'
 import { createIsolatedRedisNamespace } from './testing/isolated-redis.js'
 
@@ -49,22 +48,24 @@ describe('session http integration', () => {
   it('creates and fetches a session from a trusted matched proposal', async () => {
     const testApp = await createSessionTestApplication()
     cleanups.push(testApp.cleanup)
+    const playerOne = await registerTestAccount(testApp.baseUrl, 'player-1')
+    const playerTwo = await registerTestAccount(testApp.baseUrl, 'player-2')
 
-    await seedMatchedProposal(testApp.matchmakingRepository, 'match-1')
+    await seedMatchedProposal(testApp.matchmakingRepository, 'match-1', [playerOne.playerId, playerTwo.playerId])
 
     const createResponse = await fetch(`${testApp.baseUrl}/api/sessions`, {
       method: 'POST',
-      headers: jsonHeaders('player-1'),
+      headers: jsonHeaders(playerOne.sessionCookie),
       body: JSON.stringify({ matchId: 'match-1' }),
     })
 
     expect(createResponse.status).toBe(200)
     const created = (await createResponse.json()) as { sessionId: string; status: string; participants: Array<{ playerId: string }> }
     expect(created.status).toBe('ready')
-    expect(created.participants.map((participant) => participant.playerId)).toEqual(['player-1', 'player-2'])
+    expect(created.participants.map((participant) => participant.playerId).sort()).toEqual([playerOne.playerId, playerTwo.playerId].sort())
 
     const getResponse = await fetch(`${testApp.baseUrl}/api/sessions/${created.sessionId}`, {
-      headers: jsonHeaders('player-2'),
+      headers: jsonHeaders(playerTwo.sessionCookie),
     })
 
     expect(getResponse.status).toBe(200)
@@ -74,18 +75,20 @@ describe('session http integration', () => {
   it('keeps create idempotent under concurrent retries for the same match', async () => {
     const testApp = await createSessionTestApplication()
     cleanups.push(testApp.cleanup)
+    const playerOne = await registerTestAccount(testApp.baseUrl, 'player-1')
+    const playerTwo = await registerTestAccount(testApp.baseUrl, 'player-2')
 
-    await seedMatchedProposal(testApp.matchmakingRepository, 'match-2')
+    await seedMatchedProposal(testApp.matchmakingRepository, 'match-2', [playerOne.playerId, playerTwo.playerId])
 
     const [left, right] = await Promise.all([
       fetch(`${testApp.baseUrl}/api/sessions`, {
         method: 'POST',
-        headers: jsonHeaders('player-1'),
+        headers: jsonHeaders(playerOne.sessionCookie),
         body: JSON.stringify({ matchId: 'match-2' }),
       }),
       fetch(`${testApp.baseUrl}/api/sessions`, {
         method: 'POST',
-        headers: jsonHeaders('player-1'),
+        headers: jsonHeaders(playerOne.sessionCookie),
         body: JSON.stringify({ matchId: 'match-2' }),
       }),
     ])
@@ -107,18 +110,21 @@ describe('session http integration', () => {
   it('rejects reads from non-participants', async () => {
     const testApp = await createSessionTestApplication()
     cleanups.push(testApp.cleanup)
+    const playerOne = await registerTestAccount(testApp.baseUrl, 'player-1')
+    const playerTwo = await registerTestAccount(testApp.baseUrl, 'player-2')
+    const outsider = await registerTestAccount(testApp.baseUrl, 'player-9')
 
-    await seedMatchedProposal(testApp.matchmakingRepository, 'match-3')
+    await seedMatchedProposal(testApp.matchmakingRepository, 'match-3', [playerOne.playerId, playerTwo.playerId])
 
     const createResponse = await fetch(`${testApp.baseUrl}/api/sessions`, {
       method: 'POST',
-      headers: jsonHeaders('player-1'),
+      headers: jsonHeaders(playerOne.sessionCookie),
       body: JSON.stringify({ matchId: 'match-3' }),
     })
     const created = (await createResponse.json()) as { sessionId: string }
 
     const getResponse = await fetch(`${testApp.baseUrl}/api/sessions/${created.sessionId}`, {
-      headers: jsonHeaders('player-9'),
+      headers: jsonHeaders(outsider.sessionCookie),
     })
 
     expect(getResponse.status).toBe(404)
@@ -128,18 +134,20 @@ describe('session http integration', () => {
   it('serves session-scoped allocation reads and idempotent release', async () => {
     const testApp = await createSessionTestApplication()
     cleanups.push(testApp.cleanup)
+    const playerOne = await registerTestAccount(testApp.baseUrl, 'player-1')
+    const playerTwo = await registerTestAccount(testApp.baseUrl, 'player-2')
 
-    await seedMatchedProposal(testApp.matchmakingRepository, 'match-4')
+    await seedMatchedProposal(testApp.matchmakingRepository, 'match-4', [playerOne.playerId, playerTwo.playerId])
 
     const createResponse = await fetch(`${testApp.baseUrl}/api/sessions`, {
       method: 'POST',
-      headers: jsonHeaders('player-1'),
+      headers: jsonHeaders(playerOne.sessionCookie),
       body: JSON.stringify({ matchId: 'match-4' }),
     })
     const created = (await createResponse.json()) as { sessionId: string }
 
     const getAllocation = await fetch(`${testApp.baseUrl}/api/sessions/${created.sessionId}/allocation`, {
-      headers: jsonHeaders('player-2'),
+      headers: jsonHeaders(playerTwo.sessionCookie),
     })
     expect(getAllocation.status).toBe(200)
 
@@ -149,14 +157,14 @@ describe('session http integration', () => {
 
     const release = await fetch(`${testApp.baseUrl}/api/sessions/${created.sessionId}/allocation/release`, {
       method: 'POST',
-      headers: jsonHeaders('player-1'),
+      headers: jsonHeaders(playerOne.sessionCookie),
     })
     expect(release.status).toBe(200)
     expect((await release.json()) as { status: string }).toMatchObject({ status: 'released' })
 
     const repeatedRelease = await fetch(`${testApp.baseUrl}/api/sessions/${created.sessionId}/allocation/release`, {
       method: 'POST',
-      headers: jsonHeaders('player-1'),
+      headers: jsonHeaders(playerOne.sessionCookie),
     })
     expect(repeatedRelease.status).toBe(200)
     expect((await repeatedRelease.json()) as { status: string }).toMatchObject({ status: 'released' })
@@ -244,7 +252,7 @@ async function createTestApplication(connectionString: string, runtimeNamespace:
   return app
 }
 
-async function seedMatchedProposal(repository: PostgresMatchmakingRepository, matchId: string) {
+async function seedMatchedProposal(repository: PostgresMatchmakingRepository, matchId: string, participantPlayerIds: [string, string]) {
   const queueKey = ['signal-grid', '0.1.0-prototype', 'v1', 'quick-play', 'web', 'global'].join('::')
   const requestedAt = '2026-09-30T11:00:00.000Z'
   const matchedAt = '2026-09-30T11:01:00.000Z'
@@ -253,7 +261,7 @@ async function seedMatchedProposal(repository: PostgresMatchmakingRepository, ma
     await transaction.createRequest({
       requestId: `${matchId}-request-1`,
       requesterType: 'player',
-      requesterId: 'player-1',
+      requesterId: participantPlayerIds[0],
       gameId: 'signal-grid',
       queueKey,
       queueType: 'quick-play',
@@ -273,7 +281,7 @@ async function seedMatchedProposal(repository: PostgresMatchmakingRepository, ma
     await transaction.createRequest({
       requestId: `${matchId}-request-2`,
       requesterType: 'player',
-      requesterId: 'player-2',
+      requesterId: participantPlayerIds[1],
       gameId: 'signal-grid',
       queueKey,
       queueType: 'quick-play',
@@ -310,14 +318,14 @@ async function seedMatchedProposal(repository: PostgresMatchmakingRepository, ma
         {
           proposalId: `${matchId}-proposal`,
           requestId: `${matchId}-request-1`,
-          playerId: 'player-1',
+          playerId: participantPlayerIds[0],
           acceptanceStatus: 'accepted',
           respondedAt: matchedAt,
         },
         {
           proposalId: `${matchId}-proposal`,
           requestId: `${matchId}-request-2`,
-          playerId: 'player-2',
+          playerId: participantPlayerIds[1],
           acceptanceStatus: 'accepted',
           respondedAt: matchedAt,
         },
@@ -329,14 +337,6 @@ async function seedMatchedProposal(repository: PostgresMatchmakingRepository, ma
 async function listenOnRandomPort(app: INestApplication) {
   await app.listen(0, '127.0.0.1')
   return await app.getUrl()
-}
-
-function jsonHeaders(playerId: string) {
-  return {
-    'content-type': 'application/json',
-    'x-player-id': playerId,
-    'x-request-id': randomUUID(),
-  }
 }
 
 function restoreEnvironment(previousEnvironment: Record<string, string | undefined>) {

@@ -10,7 +10,11 @@
     "stack": "סטאק",
     "clientLaunch": "השקת לקוח",
     "runtime": "Runtime",
-    "serverFocus": "מוקד שרת"
+    "serverFocus": "מוקד שרת",
+    "authenticatedSession": "סשן מאומת",
+    "protectedNotice": "מסלול מוגן",
+    "protectedBody": "מסלול הלובי הזה פותר כעת זהות מעוגיית סשן האימות במקום מ-player id שסופק על ידי הלקוח.",
+    "realtimeTransport": "תעבורת Realtime"
   },
   "loading": {
     "eyebrow": "טוען לובי",

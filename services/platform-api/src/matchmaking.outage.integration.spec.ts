@@ -13,6 +13,9 @@ import { POSTGRES, REDIS, NATS } from './infrastructure/infrastructure.tokens.js
 import { ReadinessService } from './infrastructure/readiness.service.js'
 import { HealthController } from './modules/health/health.controller.js'
 import { MatchmakingService } from './modules/matchmaking/application/matchmaking.service.js'
+import { AuthService } from './modules/auth/application/auth.service.js'
+import type { AuthenticatedPlayerContext } from './modules/auth/application/auth.types.js'
+import { AuthenticatedPlayerGuard } from './modules/auth/transport/authenticated-player.guard.js'
 import {
   MATCHMAKING_QUEUE_STORE,
   MATCHMAKING_REPOSITORY,
@@ -52,7 +55,7 @@ describe('matchmaking outage integration', () => {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        'x-player-id': 'player-1',
+        cookie: 'gc_session=test-session',
       },
       body: JSON.stringify({ gameId: 'signal-grid', queueType: 'quick-play', platform: 'web' }),
     })
@@ -73,7 +76,7 @@ describe('matchmaking outage integration', () => {
     const readyResponse = await fetch(`${baseUrl}/health/ready`)
     const getResponse = await fetch(`${baseUrl}/api/matchmaking/requests/request-1`, {
       headers: {
-        'x-player-id': 'player-1',
+        cookie: 'gc_session=test-session',
       },
     })
 
@@ -217,6 +220,15 @@ async function createOutageApp(options: { postgresDown: boolean; redisDown: bool
           async publish() {},
         },
       },
+      {
+        provide: AuthService,
+        useValue: {
+          async requireAuthenticatedSession(_sessionToken: string | null, requestId: string | null) {
+            return createTestAuthContext('player-1', requestId)
+          },
+        },
+      },
+      AuthenticatedPlayerGuard,
     ],
   })
   class MatchmakingOutageTestModule {}
@@ -349,5 +361,15 @@ class FailingMatchmakingQueueStore implements MatchmakingQueueStore {
   }
   async clearProposalLease() {
     throw this.error
+  }
+}
+
+function createTestAuthContext(playerId: string, requestId: string | null): AuthenticatedPlayerContext {
+  return {
+    playerId,
+    email: `${playerId}@test.local`,
+    expiresAt: '9999-12-31T23:59:59.999Z',
+    sessionId: 'test-session',
+    requestId,
   }
 }

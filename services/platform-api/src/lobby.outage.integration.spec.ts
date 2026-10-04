@@ -11,8 +11,11 @@ import { ID_GENERATOR } from './boundaries/id-generator.js'
 import { REALTIME_EVENT_PUBLISHER } from './boundaries/realtime-event-publisher.js'
 import { POSTGRES, REDIS, NATS } from './infrastructure/infrastructure.tokens.js'
 import { ReadinessService } from './infrastructure/readiness.service.js'
+import { AuthService } from './modules/auth/application/auth.service.js'
 import { LobbyService } from './modules/lobby/application/lobby.service.js'
 import { LOBBY_REPOSITORY, LOBBY_RUNTIME_STORE, type LobbyRepository, type LobbyRepositoryTransaction, type LobbyRuntimeStore } from './modules/lobby/application/lobby.ports.js'
+import type { AuthenticatedPlayerContext } from './modules/auth/application/auth.types.js'
+import { AuthenticatedPlayerGuard } from './modules/auth/transport/authenticated-player.guard.js'
 import { LobbyController } from './modules/lobby/transport/lobby.controller.js'
 import { HealthController } from './modules/health/health.controller.js'
 import type { DurableLobbyAggregate } from './modules/lobby/domain/lobby-record.js'
@@ -46,7 +49,7 @@ describe('lobby outage integration', () => {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        'x-player-id': 'player-1',
+        cookie: 'gc_session=test-session',
       },
       body: JSON.stringify({
         gameId: 'signal-grid',
@@ -79,7 +82,7 @@ describe('lobby outage integration', () => {
       method: 'PUT',
       headers: {
         'content-type': 'application/json',
-        'x-player-id': 'player-1',
+        cookie: 'gc_session=test-session',
       },
       body: JSON.stringify({ ready: true }),
     })
@@ -207,6 +210,15 @@ async function createOutageApp(options: { postgresDown: boolean; redisDown: bool
           async publish() {},
         },
       },
+      {
+        provide: AuthService,
+        useValue: {
+          async requireAuthenticatedSession(_sessionToken: string | null, requestId: string | null) {
+            return createTestAuthContext('player-1', requestId)
+          },
+        },
+      },
+      AuthenticatedPlayerGuard,
     ],
   })
   class LobbyOutageTestModule {}
@@ -332,5 +344,15 @@ class FailingRuntimeStore implements LobbyRuntimeStore {
 
   async clearLobbyRuntime() {
     throw this.error
+  }
+}
+
+function createTestAuthContext(playerId: string, requestId: string | null): AuthenticatedPlayerContext {
+  return {
+    playerId,
+    email: `${playerId}@test.local`,
+    expiresAt: '9999-12-31T23:59:59.999Z',
+    sessionId: 'test-session',
+    requestId,
   }
 }

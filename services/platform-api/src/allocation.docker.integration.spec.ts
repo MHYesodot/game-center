@@ -21,6 +21,7 @@ import { createMatchmakingDatabase } from './modules/matchmaking/infrastructure/
 import { SessionsModule } from './modules/sessions/sessions.module.js'
 import { PostgresSessionRepository } from './modules/sessions/infrastructure/persistence/repositories/postgres-session.repository.js'
 import { createSessionsDatabase } from './modules/sessions/infrastructure/persistence/session.persistence.js'
+import { jsonHeaders, registerTestAccount } from './testing/auth-test-client.js'
 import { createIsolatedPostgresDatabase } from './testing/isolated-postgres-database.js'
 import { createIsolatedRedisNamespace } from './testing/isolated-redis.js'
 
@@ -56,12 +57,14 @@ describe('docker allocation integration', () => {
   it('creates a session, allocates a real Docker container, probes the descriptor, and releases idempotently', async () => {
     const testApp = await createDockerTestApplication()
     cleanups.push(testApp.cleanup)
+    const playerOne = await registerTestAccount(testApp.baseUrl, 'player-1')
+    const playerTwo = await registerTestAccount(testApp.baseUrl, 'player-2')
 
-    await seedMatchedProposal(testApp.matchmakingRepository, 'docker-match-1')
+    await seedMatchedProposal(testApp.matchmakingRepository, 'docker-match-1', [playerOne.playerId, playerTwo.playerId])
 
     const createResponse = await fetch(`${testApp.baseUrl}/api/sessions`, {
       method: 'POST',
-      headers: jsonHeaders('player-1'),
+      headers: jsonHeaders(playerOne.sessionCookie),
       body: JSON.stringify({ matchId: 'docker-match-1' }),
     })
 
@@ -70,7 +73,7 @@ describe('docker allocation integration', () => {
     expect(created.status).toBe('ready')
 
     const getAllocation = await fetch(`${testApp.baseUrl}/api/sessions/${created.sessionId}/allocation`, {
-      headers: jsonHeaders('player-2'),
+      headers: jsonHeaders(playerTwo.sessionCookie),
     })
 
     expect(getAllocation.status).toBe(200)
@@ -99,14 +102,14 @@ describe('docker allocation integration', () => {
 
     const release = await fetch(`${testApp.baseUrl}/api/sessions/${created.sessionId}/allocation/release`, {
       method: 'POST',
-      headers: jsonHeaders('player-1'),
+      headers: jsonHeaders(playerOne.sessionCookie),
     })
     expect(release.status).toBe(200)
     expect(await release.json()).toMatchObject({ status: 'released' })
 
     const repeatedRelease = await fetch(`${testApp.baseUrl}/api/sessions/${created.sessionId}/allocation/release`, {
       method: 'POST',
-      headers: jsonHeaders('player-1'),
+      headers: jsonHeaders(playerOne.sessionCookie),
     })
     expect(repeatedRelease.status).toBe(200)
     expect(await repeatedRelease.json()).toMatchObject({ status: 'released' })
@@ -116,12 +119,13 @@ describe('docker allocation integration', () => {
   it('keeps concurrent allocation requests for the same session on one managed container', async () => {
     const testApp = await createDockerTestApplication()
     cleanups.push(testApp.cleanup)
+    const playerOne = await registerTestAccount(testApp.baseUrl, 'player-1')
 
-    const sessionId = await seedCreatedSession(testApp.sessionRepository, 'docker-session-concurrent')
+    const sessionId = await seedCreatedSession(testApp.sessionRepository, 'docker-session-concurrent', playerOne.playerId)
 
     const [left, right] = await Promise.all([
-      fetch(`${testApp.baseUrl}/api/sessions/${sessionId}/allocation`, { method: 'POST', headers: jsonHeaders('player-1') }),
-      fetch(`${testApp.baseUrl}/api/sessions/${sessionId}/allocation`, { method: 'POST', headers: jsonHeaders('player-1') }),
+      fetch(`${testApp.baseUrl}/api/sessions/${sessionId}/allocation`, { method: 'POST', headers: jsonHeaders(playerOne.sessionCookie) }),
+      fetch(`${testApp.baseUrl}/api/sessions/${sessionId}/allocation`, { method: 'POST', headers: jsonHeaders(playerOne.sessionCookie) }),
     ])
 
     expect(left.status).toBe(200)
@@ -144,18 +148,20 @@ describe('docker allocation integration', () => {
   it('reuses the same container after application restart without creating a duplicate', async () => {
     const testApp = await createDockerTestApplication()
     cleanups.push(testApp.cleanup)
+    const playerOne = await registerTestAccount(testApp.baseUrl, 'player-1')
+    const playerTwo = await registerTestAccount(testApp.baseUrl, 'player-2')
 
-    await seedMatchedProposal(testApp.matchmakingRepository, 'docker-match-restart')
+    await seedMatchedProposal(testApp.matchmakingRepository, 'docker-match-restart', [playerOne.playerId, playerTwo.playerId])
 
     const createResponse = await fetch(`${testApp.baseUrl}/api/sessions`, {
       method: 'POST',
-      headers: jsonHeaders('player-1'),
+      headers: jsonHeaders(playerOne.sessionCookie),
       body: JSON.stringify({ matchId: 'docker-match-restart' }),
     })
     const created = (await createResponse.json()) as { sessionId: string }
 
     const allocationBefore = await fetch(`${testApp.baseUrl}/api/sessions/${created.sessionId}/allocation`, {
-      headers: jsonHeaders('player-2'),
+      headers: jsonHeaders(playerTwo.sessionCookie),
     }).then((response) => response.json() as Promise<{ providerReference: string; allocationId: string }>)
 
     await testApp.app.close()
@@ -169,7 +175,7 @@ describe('docker allocation integration', () => {
     cleanups.push(restarted.cleanup)
 
     const allocationAfterResponse = await fetch(`${restarted.baseUrl}/api/sessions/${created.sessionId}/allocation`, {
-      headers: jsonHeaders('player-2'),
+      headers: jsonHeaders(playerTwo.sessionCookie),
     })
 
     expect(allocationAfterResponse.status).toBe(200)
@@ -187,12 +193,14 @@ describe('docker allocation integration', () => {
   it('fails cleanly when the configured image is missing and does not leak a ready allocation', async () => {
     const testApp = await createDockerTestApplication({ image: 'game-center/missing-image:p03' })
     cleanups.push(testApp.cleanup)
+    const playerOne = await registerTestAccount(testApp.baseUrl, 'player-1')
+    const playerTwo = await registerTestAccount(testApp.baseUrl, 'player-2')
 
-    await seedMatchedProposal(testApp.matchmakingRepository, 'docker-match-missing-image')
+    await seedMatchedProposal(testApp.matchmakingRepository, 'docker-match-missing-image', [playerOne.playerId, playerTwo.playerId])
 
     const createResponse = await fetch(`${testApp.baseUrl}/api/sessions`, {
       method: 'POST',
-      headers: jsonHeaders('player-1'),
+      headers: jsonHeaders(playerOne.sessionCookie),
       body: JSON.stringify({ matchId: 'docker-match-missing-image' }),
     })
 
@@ -203,12 +211,14 @@ describe('docker allocation integration', () => {
   it('fails cleanly on Docker health timeout and removes the failed managed container', async () => {
     const testApp = await createDockerTestApplication({ testMode: 'hang-health', healthTimeoutMs: '1500' })
     cleanups.push(testApp.cleanup)
+    const playerOne = await registerTestAccount(testApp.baseUrl, 'player-1')
+    const playerTwo = await registerTestAccount(testApp.baseUrl, 'player-2')
 
-    await seedMatchedProposal(testApp.matchmakingRepository, 'docker-match-timeout')
+    await seedMatchedProposal(testApp.matchmakingRepository, 'docker-match-timeout', [playerOne.playerId, playerTwo.playerId])
 
     const createResponse = await fetch(`${testApp.baseUrl}/api/sessions`, {
       method: 'POST',
-      headers: jsonHeaders('player-1'),
+      headers: jsonHeaders(playerOne.sessionCookie),
       body: JSON.stringify({ matchId: 'docker-match-timeout' }),
     })
 
@@ -219,18 +229,20 @@ describe('docker allocation integration', () => {
   it('cleans orphaned managed containers without touching active managed or unmanaged containers', async () => {
     const testApp = await createDockerTestApplication({ orphanMinAgeSeconds: '0' })
     cleanups.push(testApp.cleanup)
+    const playerOne = await registerTestAccount(testApp.baseUrl, 'player-1')
+    const playerTwo = await registerTestAccount(testApp.baseUrl, 'player-2')
 
-    await seedMatchedProposal(testApp.matchmakingRepository, 'docker-match-cleanup')
+    await seedMatchedProposal(testApp.matchmakingRepository, 'docker-match-cleanup', [playerOne.playerId, playerTwo.playerId])
 
     const createResponse = await fetch(`${testApp.baseUrl}/api/sessions`, {
       method: 'POST',
-      headers: jsonHeaders('player-1'),
+      headers: jsonHeaders(playerOne.sessionCookie),
       body: JSON.stringify({ matchId: 'docker-match-cleanup' }),
     })
 
     const created = (await createResponse.json()) as { sessionId: string }
     const activeAllocation = await fetch(`${testApp.baseUrl}/api/sessions/${created.sessionId}/allocation`, {
-      headers: jsonHeaders('player-2'),
+      headers: jsonHeaders(playerTwo.sessionCookie),
     }).then((response) => response.json() as Promise<{ allocationId: string }>)
 
     const orphanAllocationId = `orphan-${randomUUID()}`
@@ -389,7 +401,7 @@ async function createTestApplication(connectionString: string, runtimeNamespace:
   return app
 }
 
-async function seedMatchedProposal(repository: PostgresMatchmakingRepository, matchId: string) {
+async function seedMatchedProposal(repository: PostgresMatchmakingRepository, matchId: string, participantPlayerIds: [string, string]) {
   const queueKey = ['signal-grid', '0.1.0-prototype', 'v1', 'quick-play', 'web', 'global'].join('::')
   const requestedAt = '2026-09-30T11:00:00.000Z'
   const matchedAt = '2026-09-30T11:01:00.000Z'
@@ -398,7 +410,7 @@ async function seedMatchedProposal(repository: PostgresMatchmakingRepository, ma
     await transaction.createRequest({
       requestId: `${matchId}-request-1`,
       requesterType: 'player',
-      requesterId: 'player-1',
+      requesterId: participantPlayerIds[0],
       gameId: 'signal-grid',
       queueKey,
       queueType: 'quick-play',
@@ -418,7 +430,7 @@ async function seedMatchedProposal(repository: PostgresMatchmakingRepository, ma
     await transaction.createRequest({
       requestId: `${matchId}-request-2`,
       requesterType: 'player',
-      requesterId: 'player-2',
+      requesterId: participantPlayerIds[1],
       gameId: 'signal-grid',
       queueKey,
       queueType: 'quick-play',
@@ -455,14 +467,14 @@ async function seedMatchedProposal(repository: PostgresMatchmakingRepository, ma
         {
           proposalId: `${matchId}-proposal`,
           requestId: `${matchId}-request-1`,
-          playerId: 'player-1',
+          playerId: participantPlayerIds[0],
           acceptanceStatus: 'accepted',
           respondedAt: matchedAt,
         },
         {
           proposalId: `${matchId}-proposal`,
           requestId: `${matchId}-request-2`,
-          playerId: 'player-2',
+          playerId: participantPlayerIds[1],
           acceptanceStatus: 'accepted',
           respondedAt: matchedAt,
         },
@@ -471,7 +483,7 @@ async function seedMatchedProposal(repository: PostgresMatchmakingRepository, ma
   })
 }
 
-async function seedCreatedSession(repository: PostgresSessionRepository, sessionId: string) {
+async function seedCreatedSession(repository: PostgresSessionRepository, sessionId: string, playerId: string) {
   await repository.withTransaction(async (transaction) => {
     await transaction.createSession({
       sessionId,
@@ -496,7 +508,7 @@ async function seedCreatedSession(repository: PostgresSessionRepository, session
       participants: [
         {
           sessionId,
-          playerId: 'player-1',
+          playerId,
           sourceRequestId: `request-${sessionId}`,
           sourceLobbyId: null,
           joinedAt: '2026-10-01T10:00:00.000Z',
@@ -511,14 +523,6 @@ async function seedCreatedSession(repository: PostgresSessionRepository, session
 async function listenOnRandomPort(app: INestApplication) {
   await app.listen(0, '127.0.0.1')
   return await app.getUrl()
-}
-
-function jsonHeaders(playerId: string) {
-  return {
-    'content-type': 'application/json',
-    'x-player-id': playerId,
-    'x-request-id': randomUUID(),
-  }
 }
 
 function restoreEnvironment(previousEnvironment: Record<string, string | undefined>) {

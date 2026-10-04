@@ -1,7 +1,5 @@
 import 'reflect-metadata'
 
-import { randomUUID } from 'node:crypto'
-
 import { Module, RequestMethod } from '@nestjs/common'
 import type { INestApplication } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
@@ -13,6 +11,7 @@ import { InfrastructureModule } from './infrastructure/infrastructure.module.js'
 import { LobbyModule } from './modules/lobby/lobby.module.js'
 import { CatalogModule } from './modules/catalog/catalog.module.js'
 import { migrateCatalogDatabase, seedCatalogReferenceDataWithClient, createCatalogDatabase, createCatalogPool } from './modules/catalog/infrastructure/persistence/catalog.persistence.js'
+import { registerTestAccount, jsonHeaders } from './testing/auth-test-client.js'
 import { createIsolatedPostgresDatabase } from './testing/isolated-postgres-database.js'
 import { createIsolatedRedisNamespace } from './testing/isolated-redis.js'
 
@@ -41,10 +40,12 @@ describe('lobby http integration', () => {
     cleanups.push(testApp.cleanup)
 
     const { baseUrl } = testApp
+    const owner = await registerTestAccount(baseUrl, 'player-1')
+    const member = await registerTestAccount(baseUrl, 'player-2')
 
     const createResponse = await fetch(`${baseUrl}/api/lobbies`, {
       method: 'POST',
-      headers: jsonHeaders('player-1'),
+      headers: jsonHeaders(owner.sessionCookie),
       body: JSON.stringify({
         gameId: 'signal-grid',
         visibility: 'public',
@@ -68,42 +69,43 @@ describe('lobby http integration', () => {
 
     const joinResponse = await fetch(`${baseUrl}/api/lobbies/${created.lobbyId}/join`, {
       method: 'POST',
-      headers: jsonHeaders('player-2'),
+      headers: jsonHeaders(member.sessionCookie),
       body: JSON.stringify({}),
     })
     expect(joinResponse.status).toBe(200)
 
     const readyOwnerResponse = await fetch(`${baseUrl}/api/lobbies/${created.lobbyId}/ready`, {
       method: 'PUT',
-      headers: jsonHeaders('player-1'),
+      headers: jsonHeaders(owner.sessionCookie),
       body: JSON.stringify({ ready: true }),
     })
     expect(readyOwnerResponse.status).toBe(200)
 
     const readyMemberResponse = await fetch(`${baseUrl}/api/lobbies/${created.lobbyId}/ready`, {
       method: 'PUT',
-      headers: jsonHeaders('player-2'),
+      headers: jsonHeaders(member.sessionCookie),
       body: JSON.stringify({ ready: true }),
     })
     expect(readyMemberResponse.status).toBe(200)
 
     const leaveResponse = await fetch(`${baseUrl}/api/lobbies/${created.lobbyId}/leave`, {
       method: 'POST',
-      headers: jsonHeaders('player-2'),
+      headers: jsonHeaders(member.sessionCookie),
     })
     expect(leaveResponse.status).toBe(200)
 
     const lobbyAfterLeave = (await leaveResponse.json()) as { members: Array<{ playerId: string; leftAt: string | null }> }
-    expect(lobbyAfterLeave.members.find((member) => member.playerId === 'player-2')?.leftAt).not.toBeNull()
+    expect(lobbyAfterLeave.members.find((entry) => entry.playerId === member.playerId)?.leftAt).not.toBeNull()
   }, 15_000)
 
   it('rejects invalid games with semantic not-found behavior', async () => {
     const testApp = await createLobbyTestApplication()
     cleanups.push(testApp.cleanup)
+    const owner = await registerTestAccount(testApp.baseUrl, 'player-1')
 
     const createResponse = await fetch(`${testApp.baseUrl}/api/lobbies`, {
       method: 'POST',
-      headers: jsonHeaders('player-1'),
+      headers: jsonHeaders(owner.sessionCookie),
       body: JSON.stringify({
         gameId: 'missing-game',
         visibility: 'public',
@@ -123,10 +125,13 @@ describe('lobby http integration', () => {
   it('enforces the capacity invariant under concurrent joins on the last seat', async () => {
     const testApp = await createLobbyTestApplication()
     cleanups.push(testApp.cleanup)
+    const owner = await registerTestAccount(testApp.baseUrl, 'player-1')
+    const leftPlayer = await registerTestAccount(testApp.baseUrl, 'player-2')
+    const rightPlayer = await registerTestAccount(testApp.baseUrl, 'player-3')
 
     const createResponse = await fetch(`${testApp.baseUrl}/api/lobbies`, {
       method: 'POST',
-      headers: jsonHeaders('player-1'),
+      headers: jsonHeaders(owner.sessionCookie),
       body: JSON.stringify({
         gameId: 'signal-grid',
         visibility: 'public',
@@ -143,12 +148,12 @@ describe('lobby http integration', () => {
     const [left, right] = await Promise.all([
       fetch(`${testApp.baseUrl}/api/lobbies/${created.lobbyId}/join`, {
         method: 'POST',
-        headers: jsonHeaders('player-2'),
+        headers: jsonHeaders(leftPlayer.sessionCookie),
         body: JSON.stringify({}),
       }),
       fetch(`${testApp.baseUrl}/api/lobbies/${created.lobbyId}/join`, {
         method: 'POST',
-        headers: jsonHeaders('player-3'),
+        headers: jsonHeaders(rightPlayer.sessionCookie),
         body: JSON.stringify({}),
       }),
     ])
@@ -167,10 +172,12 @@ describe('lobby http integration', () => {
   it('keeps join idempotent and start idempotent across retries', async () => {
     const testApp = await createLobbyTestApplication()
     cleanups.push(testApp.cleanup)
+    const owner = await registerTestAccount(testApp.baseUrl, 'player-1')
+    const member = await registerTestAccount(testApp.baseUrl, 'player-2')
 
     const createResponse = await fetch(`${testApp.baseUrl}/api/lobbies`, {
       method: 'POST',
-      headers: jsonHeaders('player-1'),
+      headers: jsonHeaders(owner.sessionCookie),
       body: JSON.stringify({
         gameId: 'signal-grid',
         visibility: 'public',
@@ -187,12 +194,12 @@ describe('lobby http integration', () => {
     const [joinFirst, joinSecond] = await Promise.all([
       fetch(`${testApp.baseUrl}/api/lobbies/${created.lobbyId}/join`, {
         method: 'POST',
-        headers: jsonHeaders('player-2'),
+        headers: jsonHeaders(member.sessionCookie),
         body: JSON.stringify({}),
       }),
       fetch(`${testApp.baseUrl}/api/lobbies/${created.lobbyId}/join`, {
         method: 'POST',
-        headers: jsonHeaders('player-2'),
+        headers: jsonHeaders(member.sessionCookie),
         body: JSON.stringify({}),
       }),
     ])
@@ -201,23 +208,23 @@ describe('lobby http integration', () => {
 
     await fetch(`${testApp.baseUrl}/api/lobbies/${created.lobbyId}/ready`, {
       method: 'PUT',
-      headers: jsonHeaders('player-1'),
+      headers: jsonHeaders(owner.sessionCookie),
       body: JSON.stringify({ ready: true }),
     })
     await fetch(`${testApp.baseUrl}/api/lobbies/${created.lobbyId}/ready`, {
       method: 'PUT',
-      headers: jsonHeaders('player-2'),
+      headers: jsonHeaders(member.sessionCookie),
       body: JSON.stringify({ ready: true }),
     })
 
     const [startFirst, startSecond] = await Promise.all([
       fetch(`${testApp.baseUrl}/api/lobbies/${created.lobbyId}/start`, {
         method: 'POST',
-        headers: jsonHeaders('player-1'),
+        headers: jsonHeaders(owner.sessionCookie),
       }),
       fetch(`${testApp.baseUrl}/api/lobbies/${created.lobbyId}/start`, {
         method: 'POST',
-        headers: jsonHeaders('player-1'),
+        headers: jsonHeaders(owner.sessionCookie),
       }),
     ])
 
@@ -232,10 +239,12 @@ describe('lobby http integration', () => {
   it('treats repeated leave as a semantic conflict after the member is already inactive', async () => {
     const testApp = await createLobbyTestApplication()
     cleanups.push(testApp.cleanup)
+    const owner = await registerTestAccount(testApp.baseUrl, 'player-1')
+    const member = await registerTestAccount(testApp.baseUrl, 'player-2')
 
     const createResponse = await fetch(`${testApp.baseUrl}/api/lobbies`, {
       method: 'POST',
-      headers: jsonHeaders('player-1'),
+      headers: jsonHeaders(owner.sessionCookie),
       body: JSON.stringify({
         gameId: 'signal-grid',
         visibility: 'public',
@@ -251,17 +260,17 @@ describe('lobby http integration', () => {
 
     await fetch(`${testApp.baseUrl}/api/lobbies/${created.lobbyId}/join`, {
       method: 'POST',
-      headers: jsonHeaders('player-2'),
+      headers: jsonHeaders(member.sessionCookie),
       body: JSON.stringify({}),
     })
 
     const firstLeave = await fetch(`${testApp.baseUrl}/api/lobbies/${created.lobbyId}/leave`, {
       method: 'POST',
-      headers: jsonHeaders('player-2'),
+      headers: jsonHeaders(member.sessionCookie),
     })
     const secondLeave = await fetch(`${testApp.baseUrl}/api/lobbies/${created.lobbyId}/leave`, {
       method: 'POST',
-      headers: jsonHeaders('player-2'),
+      headers: jsonHeaders(member.sessionCookie),
     })
 
     expect(firstLeave.status).toBe(200)
@@ -272,10 +281,12 @@ describe('lobby http integration', () => {
   it('survives redis runtime flush without losing durable lobby state', async () => {
     const testApp = await createLobbyTestApplication()
     cleanups.push(testApp.cleanup)
+    const owner = await registerTestAccount(testApp.baseUrl, 'player-1')
+    const member = await registerTestAccount(testApp.baseUrl, 'player-2')
 
     const createResponse = await fetch(`${testApp.baseUrl}/api/lobbies`, {
       method: 'POST',
-      headers: jsonHeaders('player-1'),
+      headers: jsonHeaders(owner.sessionCookie),
       body: JSON.stringify({
         gameId: 'signal-grid',
         visibility: 'public',
@@ -291,12 +302,12 @@ describe('lobby http integration', () => {
 
     await fetch(`${testApp.baseUrl}/api/lobbies/${created.lobbyId}/join`, {
       method: 'POST',
-      headers: jsonHeaders('player-2'),
+      headers: jsonHeaders(member.sessionCookie),
       body: JSON.stringify({}),
     })
     await fetch(`${testApp.baseUrl}/api/lobbies/${created.lobbyId}/ready`, {
       method: 'PUT',
-      headers: jsonHeaders('player-1'),
+      headers: jsonHeaders(owner.sessionCookie),
       body: JSON.stringify({ ready: true }),
     })
 
@@ -391,14 +402,6 @@ async function createTestApplication(connectionString: string, runtimeNamespace:
 async function listenOnRandomPort(app: INestApplication) {
   await app.listen(0, '127.0.0.1')
   return await app.getUrl()
-}
-
-function jsonHeaders(playerId: string) {
-  return {
-    'content-type': 'application/json',
-    'x-player-id': playerId,
-    'x-request-id': randomUUID(),
-  }
 }
 
 function restoreEnvironment(previousEnvironment: Record<string, string | undefined>) {

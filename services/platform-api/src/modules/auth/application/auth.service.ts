@@ -3,6 +3,7 @@ import type { AuthSession, IssueRealtimeTicketRequest, IssueRealtimeTicketRespon
 
 import { CLOCK, type Clock } from '../../../boundaries/clock.js'
 import { ID_GENERATOR, type IdGenerator } from '../../../boundaries/id-generator.js'
+import { isPostgresDependencyError, logDependencyDown } from '../../../infrastructure/dependency-health.js'
 import {
   AUTH_HASHER,
   AUTH_REPOSITORY,
@@ -57,10 +58,14 @@ export class AuthService {
       updatedAt: now,
     }
 
-    return this.authRepository.withTransaction(async (transaction) => {
-      await transaction.createAccount(account)
-      return this.createSessionResult(transaction.createSession.bind(transaction), account.playerId, email, now)
-    })
+    try {
+      return await this.authRepository.withTransaction(async (transaction) => {
+        await transaction.createAccount(account)
+        return this.createSessionResult(transaction.createSession.bind(transaction), account.playerId, email, now)
+      })
+    } catch (error) {
+      this.rethrowAuthWriteFailure(error, 'auth.register')
+    }
   }
 
   async login(request: LoginRequest): Promise<AuthSessionResult> {
@@ -153,9 +158,13 @@ export class AuthService {
       usedAt: null,
     }
 
-    await this.authRepository.withTransaction(async (transaction) => {
-      await transaction.createRealtimeTicket(ticket)
-    })
+    try {
+      await this.authRepository.withTransaction(async (transaction) => {
+        await transaction.createRealtimeTicket(ticket)
+      })
+    } catch (error) {
+      this.rethrowAuthWriteFailure(error, 'auth.issueRealtimeTicket')
+    }
 
     return {
       ticket: composeOpaqueToken(ticketId, ticketSecret),
@@ -231,4 +240,21 @@ export class AuthService {
   private throwAuthError(code: 'ACCOUNT_ALREADY_EXISTS' | 'INVALID_CREDENTIALS' | 'AUTHENTICATION_REQUIRED' | 'INVALID_REALTIME_TICKET', status: HttpStatus): never {
     throw new HttpException({ code }, status)
   }
+
+  private rethrowAuthWriteFailure(error: unknown, context: string): never {
+    if (isUniqueViolation(error)) {
+      this.throwAuthError('ACCOUNT_ALREADY_EXISTS', HttpStatus.CONFLICT)
+    }
+
+    if (isPostgresDependencyError(error)) {
+      logDependencyDown('postgres', error, context)
+      throw new HttpException({ code: 'AUTHENTICATION_REQUIRED' }, HttpStatus.SERVICE_UNAVAILABLE)
+    }
+
+    throw error
+  }
+}
+
+function isUniqueViolation(error: unknown) {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === '23505'
 }

@@ -69,6 +69,21 @@
     background var(--gc-motion-fast) ease;
 }
 
+.button-reset {
+  appearance: none;
+  background: none;
+  cursor: pointer;
+  border: 1px solid var(--gc-border-subtle);
+}
+
+.toolbar-session {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .topnav a:hover,
 .secondary-action:hover,
 .inline-link:hover {
@@ -167,6 +182,62 @@
 
 .hero-stack article {
   padding: 20px;
+}
+
+.auth-card {
+  display: grid;
+  gap: 14px;
+}
+
+.auth-panel-body {
+  display: grid;
+  gap: 12px;
+}
+
+.auth-actions {
+  margin-top: 4px;
+}
+
+.form-field {
+  display: grid;
+  gap: 8px;
+  color: var(--gc-text-secondary);
+}
+
+.auth-input {
+  border: 1px solid var(--gc-border-subtle);
+  border-radius: var(--gc-radius-md);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--gc-text-primary);
+  padding: 12px 14px;
+}
+
+.auth-input:focus {
+  outline: 1px solid var(--gc-accent-text);
+  border-color: var(--gc-border-strong);
+}
+
+.status-note,
+.session-chip {
+  border-radius: var(--gc-radius-md);
+  padding: 12px 14px;
+  border: 1px solid var(--gc-border-subtle);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.status-note[data-tone='error'] {
+  border-color: rgba(255, 125, 102, 0.45);
+  color: #ffd1c8;
+}
+
+.status-note[data-tone='success'] {
+  border-color: rgba(119, 209, 255, 0.38);
+  color: #d9f5ff;
+}
+
+.realtime-card {
+  display: grid;
+  gap: 10px;
 }
 
 .hero-stack span,

@@ -1,13 +1,32 @@
-import { useEffect, useMemo, useState } from 'react'
-import { BrowserRouter, Link, NavLink, Route, Routes, useParams } from 'react-router-dom'
-import type { CatalogErrorResponse, CatalogListResponse, GameDefinition } from '@game-center/contracts'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { BrowserRouter, Link, Route, Routes, useParams } from 'react-router-dom'
+import type {
+  AuthErrorResponse,
+  AuthSession,
+  CatalogErrorResponse,
+  CatalogListResponse,
+  GameDefinition,
+  IssueRealtimeTicketResponse,
+  LoginRequest,
+  PlatformRealtimeEvent,
+  RealtimeAckEnvelope,
+  RealtimeCommandEnvelope,
+  RealtimeErrorEnvelope,
+  RealtimeHandshakePayload,
+  RegisterRequest,
+} from '@game-center/contracts'
 import { formatNumber, getTextDirection, translate, translateList, type SupportedLocale } from '@game-center/i18n'
 import './App.css'
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? '/api'
+const realtimeBaseUrl = import.meta.env.VITE_REALTIME_BASE_URL ?? null
+const realtimeWebsocketPath = import.meta.env.VITE_REALTIME_WEBSOCKET_PATH ?? '/realtime/v1/ws'
+const realtimeClientVersion = 'web-portal'
 
 type GameCategoryKey = 'board' | 'arcade' | 'simulation3d'
 type CatalogSource = 'liveService'
+type AuthFormMode = 'sign-in' | 'register'
+
 type RemoteCatalogState = {
   locale: SupportedLocale
   games: Game[]
@@ -18,6 +37,25 @@ type GameDetailState =
   | { status: 'ready'; game: Game; errorKey: null }
   | { status: 'notFound'; game: null; errorKey: 'errors.catalog.gameNotFound' }
   | { status: 'error'; game: null; errorKey: 'errors.catalog.loadFailed' | 'errors.common.unknown' }
+
+type AuthState =
+  | { status: 'loading'; session: null; errorKey: null }
+  | { status: 'unauthenticated'; session: null; errorKey: string | null }
+  | { status: 'authenticated'; session: AuthSession; errorKey: null }
+
+type AuthController = {
+  state: AuthState
+  signIn(request: LoginRequest): Promise<string | null>
+  register(request: RegisterRequest): Promise<string | null>
+  signOut(): Promise<void>
+  refresh(): Promise<void>
+}
+
+type RealtimeState =
+  | { status: 'idle'; messageKey: 'common.auth.realtimeReady' | 'common.states.realtimeDisconnected' | 'common.auth.realtimeClosed' }
+  | { status: 'connecting'; messageKey: 'common.auth.realtimeTicketIssued' | 'common.states.realtimeConnecting' }
+  | { status: 'connected'; messageKey: 'common.auth.realtimeOpen'; playerId: string }
+  | { status: 'error'; messageKey: string }
 
 type GameSeed = {
   gameId: 'signal-grid' | 'rush-lane' | 'aether-flight'
@@ -150,14 +188,16 @@ const sourceLabelKeyBySource: Record<CatalogSource, string> = {
 }
 
 function App({ locale }: { locale: SupportedLocale }) {
+  const auth = useAuthSession()
+
   return (
     <BrowserRouter>
-      <GameCenter locale={locale} />
+      <GameCenter auth={auth} locale={locale} />
     </BrowserRouter>
   )
 }
 
-function GameCenter({ locale }: { locale: SupportedLocale }) {
+function GameCenter({ auth, locale }: { auth: AuthController; locale: SupportedLocale }) {
   const direction = getTextDirection(locale)
 
   return (
@@ -179,28 +219,41 @@ function GameCenter({ locale }: { locale: SupportedLocale }) {
             </a>
           ))}
         </nav>
-        <div className="source-pill">
-          {translate(locale, 'catalog.source.label', {
-            source: translate(locale, sourceLabelKeyBySource.liveService),
-          })}
+        <div className="toolbar-session">
+          <div className="source-pill">
+            {auth.state.status === 'authenticated'
+              ? translate(locale, 'common.auth.sessionLabel', { email: auth.state.session.email })
+              : translate(locale, 'catalog.source.label', {
+                  source: translate(locale, sourceLabelKeyBySource.liveService),
+                })}
+          </div>
+          {auth.state.status === 'authenticated' ? (
+            <button className="secondary-action button-reset" onClick={() => void auth.signOut()} type="button">
+              {translate(locale, 'common.actions.signOut')}
+            </button>
+          ) : (
+            <a className="secondary-action" href="#auth-panel">
+              {translate(locale, 'common.actions.signIn')}
+            </a>
+          )}
         </div>
       </header>
 
       <Routes>
-        <Route path="/" element={<HomePageRoute locale={locale} />} />
-        <Route path="/game/:slug" element={<GameLobbyPage locale={locale} />} />
+        <Route path="/" element={<HomePageRoute auth={auth} locale={locale} />} />
+        <Route path="/game/:slug" element={<ProtectedGameLobbyRoute auth={auth} locale={locale} />} />
       </Routes>
     </div>
   )
 }
 
-function HomePageRoute({ locale }: { locale: SupportedLocale }) {
+function HomePageRoute({ auth, locale }: { auth: AuthController; locale: SupportedLocale }) {
   const { games, errorKey } = useGameCatalog(locale)
 
-  return <HomePage games={games} locale={locale} errorKey={errorKey} />
+  return <HomePage auth={auth} games={games} locale={locale} errorKey={errorKey} />
 }
 
-function HomePage({ games, locale, errorKey }: { games: Game[]; locale: SupportedLocale; errorKey: string | null }) {
+function HomePage({ auth, games, locale, errorKey }: { auth: AuthController; games: Game[]; locale: SupportedLocale; errorKey: string | null }) {
   const categories = useMemo(
     () =>
       categoryOrder.map((categoryKey) => ({
@@ -239,10 +292,11 @@ function HomePage({ games, locale, errorKey }: { games: Game[]; locale: Supporte
             <h2>{translate(locale, 'catalog.highlights.gameLobbies.title')}</h2>
             <p>{translate(locale, 'catalog.highlights.gameLobbies.body')}</p>
           </article>
-          <article>
-            <span>{translate(locale, 'catalog.highlights.runtimeFit.index')}</span>
-            <h2>{translate(locale, 'catalog.highlights.runtimeFit.title')}</h2>
-            <p>{translate(locale, 'catalog.highlights.runtimeFit.body')}</p>
+          <article id="auth-panel" className="auth-card">
+            <span>{translate(locale, 'common.auth.eyebrow')}</span>
+            <h2>{translate(locale, 'common.auth.title')}</h2>
+            <p>{translate(locale, 'common.auth.body')}</p>
+            <AuthPanel auth={auth} locale={locale} />
           </article>
         </div>
       </section>
@@ -316,7 +370,111 @@ function HomePage({ games, locale, errorKey }: { games: Game[]; locale: Supporte
   )
 }
 
-function GameLobbyPage({ locale }: { locale: SupportedLocale }) {
+function ProtectedGameLobbyRoute({ auth, locale }: { auth: AuthController; locale: SupportedLocale }) {
+  const authState = auth.state
+
+  if (authState.status === 'loading') {
+    return (
+      <main className="page lobby-page">
+        <section className="lobby-layout">
+          <div className="lobby-main">
+            <p className="eyebrow">{translate(locale, 'common.auth.protectedRouteTitle')}</p>
+            <h1>{translate(locale, 'common.states.authenticating')}</h1>
+            <p>{translate(locale, 'common.auth.protectedRouteBody')}</p>
+          </div>
+        </section>
+      </main>
+    )
+  }
+
+  if (authState.status === 'unauthenticated') {
+    return (
+      <main className="page lobby-page" data-testid="auth-gate">
+        <section className="lobby-layout">
+          <div className="lobby-main">
+            <p className="eyebrow">{translate(locale, 'common.auth.protectedRouteTitle')}</p>
+            <h1>{translate(locale, 'common.actions.signIn')}</h1>
+            <p className="hero-text">{translate(locale, 'common.auth.protectedRouteBody')}</p>
+            <AuthPanel auth={auth} locale={locale} />
+          </div>
+        </section>
+      </main>
+    )
+  }
+
+  return <GameLobbyPage auth={auth} locale={locale} session={authState.session} />
+}
+
+function AuthPanel({ auth, locale }: { auth: AuthController; locale: SupportedLocale }) {
+  const [mode, setMode] = useState<AuthFormMode>('sign-in')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [localErrorKey, setLocalErrorKey] = useState<string | null>(null)
+
+  if (auth.state.status === 'authenticated') {
+    return (
+      <div className="auth-panel-body">
+        <p className="status-note" data-tone="success">
+          {translate(locale, 'common.auth.sessionLabel', { email: auth.state.session.email })}
+        </p>
+        <p className="session-chip">{translate(locale, 'common.auth.sessionSummary', { playerId: auth.state.session.playerId })}</p>
+      </div>
+    )
+  }
+
+  const errorKey = localErrorKey ?? auth.state.errorKey
+
+  async function handleSubmit(nextMode: AuthFormMode) {
+    setMode(nextMode)
+    setIsSubmitting(true)
+    setLocalErrorKey(null)
+
+    const request = {
+      email,
+      password,
+    }
+
+    const nextErrorKey =
+      nextMode === 'register' ? await auth.register(request as RegisterRequest) : await auth.signIn(request as LoginRequest)
+
+    setLocalErrorKey(nextErrorKey)
+    setIsSubmitting(false)
+  }
+
+  return (
+    <div className="auth-panel-body">
+      <label className="form-field">
+        <span>{translate(locale, 'common.auth.emailLabel')}</span>
+        <input className="auth-input" onChange={(event) => setEmail(event.target.value)} type="email" value={email} />
+      </label>
+      <label className="form-field">
+        <span>{translate(locale, 'common.auth.passwordLabel')}</span>
+        <input className="auth-input" onChange={(event) => setPassword(event.target.value)} type="password" value={password} />
+      </label>
+      {errorKey ? (
+        <p className="status-note" data-tone="error">
+          {translate(locale, errorKey)}
+        </p>
+      ) : null}
+      <div className="hero-actions auth-actions">
+        <button className="primary-action button-reset" disabled={isSubmitting} onClick={() => void handleSubmit(mode)} type="button">
+          {translate(locale, mode === 'register' ? 'common.actions.register' : 'common.actions.signIn')}
+        </button>
+        <button
+          className="secondary-action button-reset"
+          disabled={isSubmitting}
+          onClick={() => setMode(mode === 'register' ? 'sign-in' : 'register')}
+          type="button"
+        >
+          {translate(locale, mode === 'register' ? 'common.actions.signIn' : 'common.actions.register')}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function GameLobbyPage({ auth, locale, session }: { auth: AuthController; locale: SupportedLocale; session: AuthSession }) {
   const { slug } = useParams<{ slug: string }>()
   const detailState = useGameDetail(slug, locale)
 
@@ -391,9 +549,9 @@ function GameLobbyPage({ locale }: { locale: SupportedLocale }) {
             <Link className="primary-action" to="/" data-testid="lobby-back-to-catalog">
               {translate(locale, 'common.actions.backToCatalog')}
             </Link>
-            <NavLink className="secondary-action" to={`/game/${game.slug}`}>
-              {translate(locale, 'lobby.detail.overview')}
-            </NavLink>
+            <button className="secondary-action button-reset" onClick={() => void auth.signOut()} type="button">
+              {translate(locale, 'common.actions.signOut')}
+            </button>
           </div>
 
           <div className="command-panel">
@@ -420,6 +578,15 @@ function GameLobbyPage({ locale }: { locale: SupportedLocale }) {
           </div>
 
           <div className="sidebar-card">
+            <h2>{translate(locale, 'lobby.detail.authenticatedSession')}</h2>
+            <p className="status-note">{translate(locale, 'common.auth.sessionLabel', { email: session.email })}</p>
+            <p>{translate(locale, 'lobby.detail.protectedBody')}</p>
+            <p className="session-chip">{translate(locale, 'common.auth.sessionSummary', { playerId: session.playerId })}</p>
+          </div>
+
+          <RealtimeStatusCard locale={locale} session={session} />
+
+          <div className="sidebar-card">
             <h2>{translate(locale, 'lobby.detail.modes')}</h2>
             <ul className="detail-list">
               {game.sessionModes.map((mode) => (
@@ -439,6 +606,145 @@ function GameLobbyPage({ locale }: { locale: SupportedLocale }) {
         </aside>
       </section>
     </main>
+  )
+}
+
+function RealtimeStatusCard({ locale, session }: { locale: SupportedLocale; session: AuthSession }) {
+  const socketRef = useRef<WebSocket | null>(null)
+  const [state, setState] = useState<RealtimeState>({
+    status: 'idle',
+    messageKey: 'common.auth.realtimeReady',
+  })
+
+  useEffect(() => {
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.close()
+        socketRef.current = null
+      }
+    }
+  }, [])
+
+  async function connectRealtime() {
+    if (socketRef.current) {
+      return
+    }
+
+    setState({ status: 'connecting', messageKey: 'common.auth.realtimeTicketIssued' })
+
+    const ticketResponse = await fetch(`${apiBaseUrl}/auth/realtime-ticket`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        clientType: 'web',
+        clientVersion: realtimeClientVersion,
+        platform: 'web',
+      }),
+    })
+
+    if (!ticketResponse.ok) {
+      setState({ status: 'error', messageKey: await resolveAuthErrorKey(ticketResponse, 'errors.auth.realtimeUnavailable') })
+      return
+    }
+
+    const { ticket } = (await ticketResponse.json()) as IssueRealtimeTicketResponse
+    const socket = new WebSocket(buildRealtimeWebSocketUrl())
+    socketRef.current = socket
+
+    socket.addEventListener('open', () => {
+      setState({ status: 'connecting', messageKey: 'common.states.realtimeConnecting' })
+
+      const handshake: RealtimeCommandEnvelope<RealtimeHandshakePayload> = {
+        protocolVersion: 'realtime.v1',
+        kind: 'command',
+        type: 'connection.handshake',
+        messageId: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        payload: {
+          protocolVersion: 'realtime.v1',
+          ticket,
+          clientType: 'web',
+          clientVersion: realtimeClientVersion,
+          platform: 'web',
+        },
+      }
+
+      socket.send(JSON.stringify(handshake))
+    })
+
+    socket.addEventListener('message', (event) => {
+      try {
+        const message = JSON.parse(event.data) as PlatformRealtimeEvent | RealtimeAckEnvelope | RealtimeErrorEnvelope
+
+        if ('eventType' in message && message.eventType === 'connection.established' && 'playerId' in message.payload) {
+          setState({
+            status: 'connected',
+            messageKey: 'common.auth.realtimeOpen',
+            playerId: message.payload.playerId,
+          })
+          return
+        }
+
+        if ('kind' in message && message.kind === 'ack' && message.payload.status === 'accepted') {
+          setState({
+            status: 'connected',
+            messageKey: 'common.auth.realtimeOpen',
+            playerId: session.playerId,
+          })
+          return
+        }
+
+        if ('kind' in message && message.kind === 'error') {
+          setState({
+            status: 'error',
+            messageKey: mapRealtimeErrorCodeToTranslation(message.payload.code),
+          })
+        }
+      } catch {
+        setState({ status: 'error', messageKey: 'errors.auth.realtimeUnavailable' })
+      }
+    })
+
+    socket.addEventListener('close', () => {
+      socketRef.current = null
+      setState({ status: 'idle', messageKey: 'common.auth.realtimeClosed' })
+    })
+
+    socket.addEventListener('error', () => {
+      setState({ status: 'error', messageKey: 'common.auth.realtimeError' })
+    })
+  }
+
+  function disconnectRealtime() {
+    if (socketRef.current) {
+      socketRef.current.close()
+      socketRef.current = null
+    }
+
+    setState({ status: 'idle', messageKey: 'common.states.realtimeDisconnected' })
+  }
+
+  return (
+    <div className="sidebar-card realtime-card">
+      <h2>{translate(locale, 'lobby.detail.realtimeTransport')}</h2>
+      <p className="eyebrow">{translate(locale, 'common.auth.realtimeLabel')}</p>
+      <p className="status-note" data-tone={state.status === 'error' ? 'error' : state.status === 'connected' ? 'success' : 'neutral'}>
+        {state.status === 'connected'
+          ? translate(locale, state.messageKey, { playerId: state.playerId })
+          : translate(locale, state.messageKey)}
+      </p>
+      <div className="hero-actions auth-actions">
+        <button className="primary-action button-reset" onClick={() => void connectRealtime()} type="button">
+          {translate(locale, 'common.actions.connectRealtime')}
+        </button>
+        <button className="secondary-action button-reset" onClick={disconnectRealtime} type="button">
+          {translate(locale, 'common.actions.disconnectRealtime')}
+        </button>
+      </div>
+    </div>
   )
 }
 
@@ -476,8 +782,7 @@ type RemoteCatalogGame = GameDefinition
 
 function mergeRemoteCatalogGameWithLocale(remoteGame: RemoteCatalogGame, locale: SupportedLocale): Game | null {
   const presentationSeed =
-    gameSeeds.find((game) => game.gameId === remoteGame.gameId) ??
-    gameSeeds.find((game) => game.slug === remoteGame.slug)
+    gameSeeds.find((game) => game.gameId === remoteGame.gameId) ?? gameSeeds.find((game) => game.slug === remoteGame.slug)
 
   if (!presentationSeed) {
     return null
@@ -659,9 +964,144 @@ function useGameDetail(slug: string | undefined, locale: SupportedLocale): GameD
   return detailState.state
 }
 
+function useAuthSession(): AuthController {
+  const [state, setState] = useState<AuthState>({
+    status: 'loading',
+    session: null,
+    errorKey: null,
+  })
+
+  async function refresh() {
+    try {
+      const response = await fetch(`${apiBaseUrl}/auth/session`, {
+        credentials: 'include',
+      })
+
+      if (response.status === 401) {
+        setState({ status: 'unauthenticated', session: null, errorKey: null })
+        return
+      }
+
+      if (!response.ok) {
+        setState({ status: 'unauthenticated', session: null, errorKey: 'errors.auth.sessionLoadFailed' })
+        return
+      }
+
+      const session = (await response.json()) as AuthSession
+      setState({ status: 'authenticated', session, errorKey: null })
+    } catch {
+      setState({ status: 'unauthenticated', session: null, errorKey: 'errors.auth.sessionLoadFailed' })
+    }
+  }
+
+  useEffect(() => {
+    void refresh()
+  }, [])
+
+  async function signIn(request: LoginRequest) {
+    return await authenticate('/auth/login', request, setState)
+  }
+
+  async function register(request: RegisterRequest) {
+    return await authenticate('/auth/register', request, setState)
+  }
+
+  async function signOut() {
+    await fetch(`${apiBaseUrl}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+
+    setState({ status: 'unauthenticated', session: null, errorKey: null })
+  }
+
+  return {
+    state,
+    signIn,
+    register,
+    signOut,
+    refresh,
+  }
+}
+
+async function authenticate(path: '/auth/login' | '/auth/register', request: LoginRequest | RegisterRequest, setState: (state: AuthState) => void) {
+  try {
+    const response = await fetch(`${apiBaseUrl}${path}`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      const errorKey = await resolveAuthErrorKey(response, 'errors.common.unknown')
+      setState({ status: 'unauthenticated', session: null, errorKey })
+      return errorKey
+    }
+
+    const session = (await response.json()) as AuthSession
+    setState({ status: 'authenticated', session, errorKey: null })
+    return null
+  } catch {
+    setState({ status: 'unauthenticated', session: null, errorKey: 'errors.common.unknown' })
+    return 'errors.common.unknown'
+  }
+}
+
+async function resolveAuthErrorKey(response: Response, fallbackKey: string) {
+  const error = await parseAuthErrorResponse(response)
+
+  switch (error?.code) {
+    case 'ACCOUNT_ALREADY_EXISTS':
+      return 'errors.auth.accountAlreadyExists'
+    case 'INVALID_CREDENTIALS':
+      return 'errors.auth.invalidCredentials'
+    case 'AUTHENTICATION_REQUIRED':
+      return 'errors.auth.sessionRequired'
+    case 'INVALID_REALTIME_TICKET':
+      return 'errors.auth.realtimeRejected'
+    default:
+      return fallbackKey
+  }
+}
+
+function mapRealtimeErrorCodeToTranslation(code: string) {
+  switch (code) {
+    case 'AUTHENTICATION_REQUIRED':
+    case 'INVALID_REALTIME_TICKET':
+      return 'errors.auth.realtimeRejected'
+    case 'REALTIME_UNAVAILABLE':
+      return 'errors.auth.realtimeUnavailable'
+    default:
+      return 'common.auth.realtimeError'
+  }
+}
+
+function buildRealtimeWebSocketUrl() {
+  if (realtimeBaseUrl) {
+    if (realtimeBaseUrl.startsWith('ws://') || realtimeBaseUrl.startsWith('wss://')) {
+      return `${realtimeBaseUrl}${realtimeWebsocketPath}`
+    }
+
+    return `${realtimeBaseUrl.replace(/^http/, 'ws')}${realtimeWebsocketPath}`
+  }
+
+  return `${window.location.origin.replace(/^http/, 'ws')}${realtimeWebsocketPath}`
+}
+
 async function parseCatalogErrorResponse(response: Response): Promise<CatalogErrorResponse | null> {
   try {
     return (await response.json()) as CatalogErrorResponse
+  } catch {
+    return null
+  }
+}
+
+async function parseAuthErrorResponse(response: Response): Promise<AuthErrorResponse | null> {
+  try {
+    return (await response.json()) as AuthErrorResponse
   } catch {
     return null
   }

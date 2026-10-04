@@ -5,5 +5,13 @@
   "catalog": {
     "loadFailed": "Unable to load live catalog.",
     "gameNotFound": "This game is not in the active catalog."
+  },
+  "auth": {
+    "invalidCredentials": "Email or password is incorrect.",
+    "accountAlreadyExists": "An account already exists for this email.",
+    "sessionRequired": "Sign in to continue.",
+    "sessionLoadFailed": "Unable to load the current session.",
+    "realtimeRejected": "Realtime authentication was rejected.",
+    "realtimeUnavailable": "Realtime is unavailable right now."
   }
 }
